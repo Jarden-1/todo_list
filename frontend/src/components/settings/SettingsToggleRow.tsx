@@ -1,4 +1,5 @@
 import { Switch } from "../ui/switch";
+import { cn } from "../../lib/utils";
 
 interface SettingsToggleRowProps {
   checked: boolean;
@@ -7,6 +8,8 @@ interface SettingsToggleRowProps {
   description: string;
   ariaLabel?: string;
   disabled?: boolean;
+  className?: string;
+  busy?: boolean;
 }
 
 export function SettingsToggleRow({
@@ -16,9 +19,11 @@ export function SettingsToggleRow({
   description,
   ariaLabel,
   disabled,
+  className,
+  busy,
 }: SettingsToggleRowProps) {
   return (
-    <div className="settings-toggle-row">
+    <div className={cn("settings-toggle-row", className)} aria-busy={busy || undefined}>
       <div className="min-w-0">
         <p className="text-sm font-semibold text-foreground">{title}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>

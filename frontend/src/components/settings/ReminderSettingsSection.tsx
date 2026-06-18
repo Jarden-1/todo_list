@@ -4,6 +4,7 @@ import { useSettings } from "../../contexts/SettingsContext";
 import { cn } from "../../lib/utils";
 import { playNotificationSound } from "../../lib/notificationSound";
 import {
+  fetchPushPublicKey,
   getApiErrorMessage,
   getBrowserNotificationPermission,
   getPushUnavailableReason,
@@ -19,12 +20,29 @@ export function ReminderSettingsSection() {
   const { settings, updateRingtone } = useSettings();
   const [savingBrowserNotification, setSavingBrowserNotification] = useState(false);
   const [browserNotificationMessage, setBrowserNotificationMessage] = useState<string | null>(null);
+  const [pushPublicKeyConfigured, setPushPublicKeyConfigured] = useState<boolean | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
     "unsupported"
   );
 
   useEffect(() => {
     setNotificationPermission(getBrowserNotificationPermission());
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetchPushPublicKey()
+      .then((publicKey) => {
+        if (!ignore) setPushPublicKeyConfigured(Boolean(publicKey));
+      })
+      .catch(() => {
+        if (!ignore) setPushPublicKeyConfigured(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const handleSelectSound = (sound: string) => {
@@ -36,8 +54,16 @@ export function ReminderSettingsSection() {
   };
 
   const pushUnavailableReason = useMemo(() => getPushUnavailableReason(), []);
+  const browserNotificationUnavailableReason =
+    pushUnavailableReason ??
+    (pushPublicKeyConfigured === false ? "Web Push VAPID public key 未配置" : null);
 
   const handleToggleBrowserNotification = async (checked: boolean) => {
+    if (checked && browserNotificationUnavailableReason) {
+      setBrowserNotificationMessage(browserNotificationUnavailableReason);
+      return;
+    }
+
     setSavingBrowserNotification(true);
     setBrowserNotificationMessage(null);
 
@@ -181,25 +207,31 @@ export function ReminderSettingsSection() {
               </div>
             </div>
 
-            <div className="md:col-span-2 rounded-xl bg-muted/30 p-3 shadow-[inset_0_0_0_1px_oklch(from_var(--border)_l_c_h_/_22%)]">
+            <div className="settings-inline-panel md:col-span-2">
               <SettingsToggleRow
                 checked={settings.ringtone.browserNotificationsEnabled}
                 onCheckedChange={handleToggleBrowserNotification}
                 title="浏览器系统通知"
                 description="浏览器关闭或页面不在前台时，由 Service Worker 接收 Web Push 并弹出系统通知。"
                 ariaLabel="切换浏览器系统通知"
+                className="settings-toggle-row-flat"
+                busy={savingBrowserNotification}
                 disabled={
                   savingBrowserNotification ||
                   notificationPermission === "unsupported" ||
-                  Boolean(pushUnavailableReason)
+                  pushPublicKeyConfigured === null ||
+                  Boolean(browserNotificationUnavailableReason)
                 }
               />
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] leading-5 text-muted-foreground">
+              <div className="settings-inline-meta">
                 {savingBrowserNotification && (
                   <span className="inline-flex items-center gap-1 text-primary">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     正在同步订阅
                   </span>
+                )}
+                {!savingBrowserNotification && pushPublicKeyConfigured === null && (
+                  <span>正在检查 Web Push 配置</span>
                 )}
                 {notificationPermission === "granted" && (
                   <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
@@ -208,7 +240,7 @@ export function ReminderSettingsSection() {
                   </span>
                 )}
                 {notificationPermission !== "granted" && <span>{desktopNotificationText}</span>}
-                {pushUnavailableReason && <span>{pushUnavailableReason}</span>}
+                {browserNotificationUnavailableReason && <span>{browserNotificationUnavailableReason}</span>}
                 {browserNotificationMessage && (
                   <span
                     className={cn(

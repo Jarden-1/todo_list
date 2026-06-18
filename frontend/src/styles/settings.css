@@ -99,6 +99,34 @@
     --switch-width: 2.75rem;
     width: var(--switch-width);
   }
+  .settings-toggle-row-flat {
+    min-height: 3.75rem;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+  .dark .settings-toggle-row-flat {
+    background: transparent;
+    box-shadow: none;
+  }
+  .settings-inline-panel {
+    border-top: 1px solid oklch(from var(--border) l c h / 30%);
+    padding-top: 1rem;
+  }
+  .dark .settings-inline-panel {
+    border-top-color: oklch(1 0 0 / 8%);
+  }
+  .settings-inline-meta {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.6875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+  }
   .settings-subgrid {
     display: grid;
     gap: 1rem;

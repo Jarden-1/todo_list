@@ -120,12 +120,17 @@ function getDeviceName() {
   return `${browser} on ${platform}`;
 }
 
-async function getPushPublicKey() {
+export async function fetchPushPublicKey() {
   const response = await apiRequest<{ publicKey: string }>("/push/public-key");
-  if (!response.publicKey) {
+  return response.publicKey.trim();
+}
+
+async function getPushPublicKey() {
+  const publicKey = await fetchPushPublicKey();
+  if (!publicKey) {
     throw new Error("后端没有返回 Web Push public key");
   }
-  return response.publicKey;
+  return publicKey;
 }
 
 export async function registerSmartTodoServiceWorker() {
