@@ -12,7 +12,6 @@ import type { Todo } from "../lib/types";
 import { useTodo } from "../contexts/TodoContext";
 import { copyToClipboard } from "../lib/clipboard";
 import { formatTodoMarkdown, formatTodoPlainText } from "../lib/todoFormat";
-import { cloneTodo } from "../lib/todoClone";
 import { cn } from "../lib/utils";
 import {
   DropdownMenu,
@@ -48,12 +47,12 @@ export function TodoActionsMenu({
   onDuplicated,
 }: TodoActionsMenuProps) {
   const {
-    todos,
     getProjectById,
     cancelTodo,
     deleteTodo,
     restoreTodo,
     duplicateTodo,
+    refreshWorkspace,
   } = useTodo();
   const project = getProjectById(todo.projectId);
 
@@ -71,54 +70,61 @@ export function TodoActionsMenu({
     }
   };
 
-  const handleDuplicate = () => {
-    const duplicated = duplicateTodo(todo.id);
-    if (!duplicated) {
-      toast.error("复制失败，待办不存在");
-      return;
+  const handleDuplicate = async () => {
+    try {
+      const duplicated = await duplicateTodo(todo.id);
+      toast.success("已复制一份待办", {
+        action: onDuplicated
+          ? {
+              label: "打开",
+              onClick: () => onDuplicated(duplicated),
+            }
+          : undefined,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "复制失败，待办不存在");
     }
-
-    toast.success("已复制一份待办", {
-      action: onDuplicated
-        ? {
-            label: "打开",
-            onClick: () => onDuplicated(duplicated),
-          }
-        : undefined,
-    });
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (todo.status === "cancelled") return;
 
-    const snapshot = cloneTodo(todo);
-    const index = todos.findIndex((item) => item.id === todo.id);
-    cancelTodo(todo.id);
-    toast("已取消待办", {
-      action: {
-        label: "撤销",
-        onClick: () => {
-          restoreTodo(snapshot, index);
-          onRestored?.();
+    try {
+      await cancelTodo(todo.id);
+      toast("已取消待办", {
+        action: {
+          label: "撤销",
+          onClick: () => {
+            void restoreTodo(todo.id, todo.status).then(() => onRestored?.()).catch((error) => {
+              toast.error(error instanceof Error ? error.message : "恢复失败");
+              void refreshWorkspace().catch(() => {});
+            });
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "取消失败");
+    }
   };
 
-  const handleDelete = () => {
-    const snapshot = cloneTodo(todo);
-    const index = todos.findIndex((item) => item.id === todo.id);
-    deleteTodo(todo.id);
-    onDeleted?.();
-    toast("待办已删除", {
-      action: {
-        label: "撤销",
-        onClick: () => {
-          restoreTodo(snapshot, index);
-          onRestored?.();
+  const handleDelete = async () => {
+    try {
+      await deleteTodo(todo.id);
+      onDeleted?.();
+      toast("待办已删除", {
+        action: {
+          label: "撤销",
+          onClick: () => {
+            void restoreTodo(todo.id, todo.status).then(() => onRestored?.()).catch((error) => {
+              toast.error(error instanceof Error ? error.message : "恢复失败");
+              void refreshWorkspace().catch(() => {});
+            });
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除失败");
+    }
   };
 
   return (
@@ -153,14 +159,14 @@ export function TodoActionsMenu({
           <FileText className="h-4 w-4" />
           复制 Markdown
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleDuplicate}>
+        <DropdownMenuItem onSelect={() => void handleDuplicate()}>
           <CopyPlus className="h-4 w-4" />
           复制一份
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-border/55" />
         <DropdownMenuItem
           disabled={todo.status === "cancelled"}
-          onSelect={handleCancel}
+          onSelect={() => void handleCancel()}
           className="text-muted-foreground"
         >
           <Ban className="h-4 w-4" />
@@ -168,7 +174,7 @@ export function TodoActionsMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           variant="destructive"
-          onSelect={handleDelete}
+          onSelect={() => void handleDelete()}
           className="text-red-500/80 focus:bg-red-500/10 focus:text-red-600 dark:text-red-300/80 dark:focus:text-red-200"
         >
           <Trash2 className="h-4 w-4" />

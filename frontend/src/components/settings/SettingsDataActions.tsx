@@ -2,9 +2,12 @@ import { useRef } from "react";
 import { Database, Download, RotateCcw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "../../contexts/SettingsContext";
-import type { AppSettings } from "../../contexts/SettingsContext";
 import { useTodo } from "../../contexts/TodoContext";
-import type { Project, Tag, Todo, UndoRecord } from "../../lib/types";
+import {
+  clearWorkspace,
+  exportWorkspace,
+  importWorkspace,
+} from "../../lib/workspaceApi";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,84 +20,56 @@ import {
   AlertDialogTrigger,
 } from "../ui/alert-dialog";
 
-interface SmartTodoBackup {
-  app: "SmartTodo";
-  exportedAt: string;
-  settings?: Partial<AppSettings>;
-  data: {
-    todos: Todo[];
-    projects: Project[];
-    tags: Tag[];
-    undoRecord: UndoRecord | null;
-  };
-}
-
-function isBackup(value: unknown): value is SmartTodoBackup {
-  if (!value || typeof value !== "object") return false;
-  const backup = value as Partial<SmartTodoBackup>;
-  return (
-    backup.app === "SmartTodo" &&
-    !!backup.data &&
-    Array.isArray(backup.data.todos) &&
-    Array.isArray(backup.data.projects) &&
-    Array.isArray(backup.data.tags)
-  );
-}
-
 export function SettingsDataActions() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { settings, replaceSettings, resetSettings } = useSettings();
-  const {
-    todos,
-    projects,
-    tags,
-    undoRecord,
-    replaceWorkspaceData,
-    clearWorkspaceData,
-  } = useTodo();
+  const { resetSettings } = useSettings();
+  const { refreshWorkspace } = useTodo();
 
-  const exportData = () => {
-    const backup: SmartTodoBackup = {
-      app: "SmartTodo",
-      exportedAt: new Date().toISOString(),
-      settings,
-      data: {
-        todos,
-        projects,
-        tags,
-        undoRecord,
-      },
-    };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `smarttodo-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("数据已导出");
+  const exportData = async () => {
+    try {
+      const backup = await exportWorkspace();
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `smarttodo-account-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("账户数据已导出");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "导出失败");
+    }
   };
 
   const importData = async (file: File) => {
     try {
       const parsed = JSON.parse(await file.text()) as unknown;
-      if (!isBackup(parsed)) {
-        toast.error("导入失败：文件格式不正确");
-        return;
-      }
-
-      replaceWorkspaceData({
-        todos: parsed.data.todos,
-        projects: parsed.data.projects,
-        tags: parsed.data.tags,
-        undoRecord: parsed.data.undoRecord ?? null,
-      });
-      if (parsed.settings) replaceSettings(parsed.settings);
-      toast.success("数据已导入");
-    } catch {
-      toast.error("导入失败：无法读取这个文件");
+      await importWorkspace(parsed);
+      await refreshWorkspace();
+      toast.success("账户数据已导入");
+    } catch (error) {
+      toast.error(error instanceof Error ? `导入失败：${error.message}` : "导入失败：无法读取这个文件");
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleResetSettings = async () => {
+    try {
+      await resetSettings();
+      toast.success("设置已恢复默认");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "设置重置失败");
+    }
+  };
+
+  const handleClearWorkspace = async () => {
+    try {
+      await clearWorkspace();
+      await refreshWorkspace();
+      toast.success("服务端数据已清空");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "清空失败");
     }
   };
 
@@ -106,16 +81,16 @@ export function SettingsDataActions() {
             <Database className="h-3.5 w-3.5 text-muted-foreground" />
             <p className="text-xs font-semibold text-foreground">数据</p>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">备份、恢复和清理当前浏览器里的本地数据。</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">备份、恢复和清理当前账户的服务端数据。</p>
         </div>
       </div>
 
       <div className="settings-side-action-list">
-        <button type="button" onClick={exportData} className="settings-side-action">
+        <button type="button" onClick={() => void exportData()} className="settings-side-action">
           <Download className="h-3.5 w-3.5 text-primary" />
           <span className="settings-side-action-copy">
             <span className="settings-side-action-title">导出数据</span>
-            <span className="settings-side-action-desc">下载一份完整备份</span>
+            <span className="settings-side-action-desc">下载一份账户数据备份</span>
           </span>
         </button>
 
@@ -123,7 +98,7 @@ export function SettingsDataActions() {
           <Upload className="h-3.5 w-3.5 text-primary" />
           <span className="settings-side-action-copy">
             <span className="settings-side-action-title">导入数据</span>
-            <span className="settings-side-action-desc">从 SmartTodo 备份恢复</span>
+            <span className="settings-side-action-desc">导入到当前账户</span>
           </span>
         </button>
         <input
@@ -139,10 +114,7 @@ export function SettingsDataActions() {
 
         <button
           type="button"
-          onClick={() => {
-            resetSettings();
-            toast.success("设置已恢复默认");
-          }}
+          onClick={() => void handleResetSettings()}
           className="settings-side-action"
         >
           <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
@@ -158,25 +130,22 @@ export function SettingsDataActions() {
               <Trash2 className="h-3.5 w-3.5" />
               <span className="settings-side-action-copy">
                 <span className="settings-side-action-title">清空数据</span>
-                <span className="settings-side-action-desc">删除所有本地待办和项目</span>
+                <span className="settings-side-action-desc">删除所有服务端待办和项目</span>
               </span>
             </button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>清空所有本地数据？</AlertDialogTitle>
+              <AlertDialogTitle>清空当前账户数据？</AlertDialogTitle>
               <AlertDialogDescription>
-                这个操作会删除当前浏览器里的待办、项目和标签。建议先导出一份备份。
+                这个操作会删除当前账户的待办、项目和标签。建议先导出一份备份。
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-red-500/90 text-white hover:bg-red-500"
-                onClick={() => {
-                  clearWorkspaceData();
-                  toast.success("本地数据已清空");
-                }}
+                onClick={() => void handleClearWorkspace()}
               >
                 清空数据
               </AlertDialogAction>

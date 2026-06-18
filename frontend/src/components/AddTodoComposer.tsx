@@ -1,14 +1,11 @@
 // SmartTodo - Smart Composer
 // Two modes: "compose" (Markdown editor + AI) and "fields" (structured form)
 import { useState, useRef, useEffect } from "react";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useTodo } from "../contexts/TodoContext";
-import { useAiOrganize } from "../hooks/useAiOrganize";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { MarkdownEditor } from "./MarkdownEditor";
-import { stripEmbeddedImagesForAi } from "../lib/markdownImages";
-import { appendEmbeddedImagesToAiResult } from "../lib/aiTodoResult";
 import { CollapsedComposer } from "./composer/CollapsedComposer";
 import { ComposerFullscreenDialog } from "./composer/ComposerFullscreenDialog";
 import {
@@ -29,60 +26,8 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const pendingAiOriginalInputRef = useRef<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const { addTodo, addTodoFromAi, undoLastAiCreate, projects } = useTodo();
-
-  const { organize, loading: aiLoading } = useAiOrganize({
-    onSuccess: (result, originalInput) => {
-      const rawOriginalInput = pendingAiOriginalInputRef.current ?? originalInput;
-      pendingAiOriginalInputRef.current = null;
-      const resultWithImages = appendEmbeddedImagesToAiResult(result, rawOriginalInput);
-      const todo = addTodoFromAi(resultWithImages, rawOriginalInput);
-      setInput("");
-      setExpanded(false);
-      setFullscreen(false);
-      onTodoCreated?.(todo.id);
-
-      const warnings = result.warnings?.length ? result.warnings : null;
-      toast.custom(
-        (t) => (
-          <div className="flex items-start gap-3 bg-card border border-border rounded-xl p-4 shadow-2xl min-w-[300px]">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-foreground font-medium">已创建：{resultWithImages.title}</p>
-              {warnings && (
-                <p className="text-xs text-amber-500 mt-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  {warnings[0]}
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => {
-                const original = undoLastAiCreate();
-                if (original) {
-                  setInput(original);
-                  setExpanded(true);
-                  setFullscreen(false);
-                  setMode("compose");
-                  toast.dismiss(t);
-                  toast.info("已撤销，原始输入已恢复");
-                }
-              }}
-              className="text-xs text-primary hover:text-primary/80 font-medium whitespace-nowrap transition-colors"
-            >
-              撤销
-            </button>
-          </div>
-        ),
-        { duration: 8000 }
-      );
-    },
-    onError: (err) => {
-      pendingAiOriginalInputRef.current = null;
-      toast.error(`AI 整理失败：${err}`);
-    },
-  });
 
   // Auto-resize textarea
   useEffect(() => {
@@ -134,14 +79,54 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
 
   const handleAiOrganize = async () => {
     const text = input.trim();
-    if (!text) return;
-    pendingAiOriginalInputRef.current = input;
-    await organize(stripEmbeddedImagesForAi(text), {
-      projects: projects.map((p) => p.name),
-    });
+    if (!text || aiLoading) return;
+
+    setAiLoading(true);
+    try {
+      const todo = await addTodoFromAi(input);
+      setInput("");
+      setExpanded(false);
+      setFullscreen(false);
+      onTodoCreated?.(todo.id);
+
+      toast.custom(
+        (t) => (
+          <div className="flex min-w-[300px] items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-2xl">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">已创建：{todo.title}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void undoLastAiCreate()
+                  .then((original) => {
+                    if (!original) return;
+                    setInput(original);
+                    setExpanded(true);
+                    setFullscreen(false);
+                    setMode("compose");
+                    toast.dismiss(t);
+                    toast.info("已撤销，原始输入已恢复");
+                  })
+                  .catch(() => toast.error("撤销失败，请稍后重试"));
+              }}
+              className="whitespace-nowrap text-xs font-medium text-primary transition-colors hover:text-primary/80"
+            >
+              撤销
+            </button>
+          </div>
+        ),
+        { duration: 8000 }
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? `AI 整理失败：${error.message}` : "AI 整理失败");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
-  const handleFieldsAdd = (fields: {
+  const handleFieldsAdd = async (fields: {
     title: string;
     priority: Parameters<typeof addTodo>[0]["priority"];
     dueAt?: string;
@@ -149,18 +134,23 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     assignee?: string;
     contentMarkdown: string;
   }) => {
-    const todo = addTodo({
-      title: fields.title,
-      priority: fields.priority,
-      dueAt: fields.dueAt,
-      projectId: fields.projectId,
-      tagIds: [],
-      assignee: fields.assignee,
-      contentMarkdown: fields.contentMarkdown,
-    });
-    setExpanded(false);
-    onTodoCreated?.(todo.id);
-    toast.success(`已添加：${fields.title}`);
+    try {
+      const todo = await addTodo({
+        title: fields.title,
+        priority: fields.priority,
+        dueAt: fields.dueAt,
+        projectId: fields.projectId,
+        tagIds: [],
+        assignee: fields.assignee,
+        contentMarkdown: fields.contentMarkdown,
+      });
+      setExpanded(false);
+      onTodoCreated?.(todo.id);
+      toast.success(`已添加：${fields.title}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "添加失败，请稍后重试");
+      throw error;
+    }
   };
 
   const hasComposeInput = input.trim().length > 0;

@@ -16,7 +16,7 @@ interface StructuredTodoFormProps {
     projectId?: string;
     assignee?: string;
     contentMarkdown: string;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 export function StructuredTodoForm({ projects, onCancel, onAddTodo }: StructuredTodoFormProps) {
@@ -26,6 +26,7 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
   const [projectId, setProjectId] = useState("");
   const [assignee, setAssignee] = useState("");
   const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setTitle("");
@@ -36,22 +37,28 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
     setNote("");
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       toast.error("请输入标题");
       return;
     }
+    if (saving) return;
 
-    onAddTodo({
-      title: trimmedTitle,
-      priority,
-      dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
-      projectId: projectId || undefined,
-      assignee: assignee.trim() || undefined,
-      contentMarkdown: note.trim(),
-    });
-    reset();
+    setSaving(true);
+    try {
+      await onAddTodo({
+        title: trimmedTitle,
+        priority,
+        dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+        projectId: projectId || undefined,
+        assignee: assignee.trim() || undefined,
+        contentMarkdown: note.trim(),
+      });
+      reset();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -63,7 +70,7 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") handleAdd();
+            if (event.key === "Enter") void handleAdd();
             if (event.key === "Escape") onCancel();
           }}
           placeholder="待办标题 *"
@@ -157,7 +164,7 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
         </button>
         <button
           onClick={handleAdd}
-          disabled={!title.trim()}
+          disabled={!title.trim() || saving}
           className={cn(
             "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold",
             "bg-primary text-primary-foreground",
@@ -166,7 +173,7 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
           )}
         >
           <Plus className="w-3.5 h-3.5" />
-          添加待办
+          {saving ? "添加中..." : "添加待办"}
         </button>
       </div>
     </div>

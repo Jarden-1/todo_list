@@ -1,4 +1,5 @@
 import { Clapperboard, MousePointerClick, Volume2 } from "lucide-react";
+import { toast } from "sonner";
 import { useSettings } from "../../contexts/SettingsContext";
 import { SettingsCard } from "./SettingsCard";
 import { SettingsToggleRow } from "./SettingsToggleRow";
@@ -16,21 +17,33 @@ export function FeedbackSettingsSection() {
       <div className="grid gap-3 xl:grid-cols-3">
         <SettingsToggleRow
           checked={settings.feedback.completeSound}
-          onCheckedChange={(checked) => updateFeedback({ completeSound: checked })}
+          onCheckedChange={(checked) => {
+            void updateFeedback({ completeSound: checked }).catch((error) =>
+              toast.error(error instanceof Error ? error.message : "反馈设置保存失败")
+            );
+          }}
           title="完成音效"
           description="点击完成待办时播放轻量正反馈音。"
           ariaLabel="切换完成音效"
         />
         <SettingsToggleRow
           checked={settings.feedback.completeAnimation}
-          onCheckedChange={(checked) => updateFeedback({ completeAnimation: checked })}
+          onCheckedChange={(checked) => {
+            void updateFeedback({ completeAnimation: checked }).catch((error) =>
+              toast.error(error instanceof Error ? error.message : "反馈设置保存失败")
+            );
+          }}
           title="完成动画"
           description="完成待办时保留短暂弹性反馈。"
           ariaLabel="切换完成动画"
         />
         <SettingsToggleRow
           checked={settings.feedback.operationSound}
-          onCheckedChange={(checked) => updateFeedback({ operationSound: checked })}
+          onCheckedChange={(checked) => {
+            void updateFeedback({ operationSound: checked }).catch((error) =>
+              toast.error(error instanceof Error ? error.message : "反馈设置保存失败")
+            );
+          }}
           title="操作提示音"
           description="为保存、复制等轻操作预留提示音。"
           ariaLabel="切换操作提示音"

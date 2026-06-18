@@ -13,6 +13,7 @@ import {
 import { ADVANCE_OPTIONS, RINGTONES } from "./settingsOptions";
 import { SettingsCard } from "./SettingsCard";
 import { SettingsToggleRow } from "./SettingsToggleRow";
+import { toast } from "sonner";
 
 export function ReminderSettingsSection() {
   const { settings, updateRingtone } = useSettings();
@@ -28,7 +29,9 @@ export function ReminderSettingsSection() {
 
   const handleSelectSound = (sound: string) => {
     const nextConfig = { ...settings.ringtone, sound };
-    updateRingtone({ sound });
+    void updateRingtone({ sound }).catch((error) =>
+      toast.error(error instanceof Error ? error.message : "铃声保存失败")
+    );
     playNotificationSound(nextConfig);
   };
 
@@ -41,7 +44,7 @@ export function ReminderSettingsSection() {
     try {
       if (checked) {
         const saved = await subscribeCurrentBrowserToPush();
-        updateRingtone({
+        await updateRingtone({
           browserNotificationsEnabled: true,
           pushSubscriptionId: saved.subscription.id,
           pushEndpoint: saved.endpoint,
@@ -55,7 +58,7 @@ export function ReminderSettingsSection() {
         settings.ringtone.pushEndpoint,
         settings.ringtone.pushSubscriptionId
       );
-      updateRingtone({
+      await updateRingtone({
         browserNotificationsEnabled: false,
         pushSubscriptionId: undefined,
         pushEndpoint: undefined,
@@ -66,7 +69,7 @@ export function ReminderSettingsSection() {
       setNotificationPermission(getBrowserNotificationPermission());
       setBrowserNotificationMessage(getApiErrorMessage(error));
       if (checked) {
-        updateRingtone({
+        await updateRingtone({
           browserNotificationsEnabled: false,
           pushSubscriptionId: undefined,
           pushEndpoint: undefined,
@@ -96,7 +99,11 @@ export function ReminderSettingsSection() {
       <div className="space-y-4">
         <SettingsToggleRow
           checked={settings.ringtone.enabled}
-          onCheckedChange={(checked) => updateRingtone({ enabled: checked })}
+          onCheckedChange={(checked) => {
+            void updateRingtone({ enabled: checked }).catch((error) =>
+              toast.error(error instanceof Error ? error.message : "提醒设置保存失败")
+            );
+          }}
           title={settings.ringtone.enabled ? "到期提醒已开启" : "到期提醒已关闭"}
           description={
             settings.ringtone.enabled
@@ -112,7 +119,11 @@ export function ReminderSettingsSection() {
               <label className="settings-label mb-1.5">提前时间</label>
               <select
                 value={settings.ringtone.advanceMinutes}
-                onChange={(event) => updateRingtone({ advanceMinutes: Number(event.target.value) })}
+                onChange={(event) => {
+                  void updateRingtone({ advanceMinutes: Number(event.target.value) }).catch((error) =>
+                    toast.error(error instanceof Error ? error.message : "提醒时间保存失败")
+                  );
+                }}
                 className="field-input"
               >
                 {ADVANCE_OPTIONS.map((item) => (
@@ -159,7 +170,11 @@ export function ReminderSettingsSection() {
                   min="0"
                   max="100"
                   value={settings.ringtone.volume}
-                  onChange={(event) => updateRingtone({ volume: Number(event.target.value) })}
+                  onChange={(event) => {
+                    void updateRingtone({ volume: Number(event.target.value) }).catch((error) =>
+                      toast.error(error instanceof Error ? error.message : "音量保存失败")
+                    );
+                  }}
                   className="flex-1 accent-primary"
                 />
                 <span className="w-9 text-right text-xs text-muted-foreground">{settings.ringtone.volume}%</span>

@@ -85,8 +85,11 @@ export function CompletedView({ selectedId, onSelect }: CompletedViewProps) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        uncompleteTodo(todo.id);
-                        toast.success(`已恢复：${todo.title}`);
+                        void uncompleteTodo(todo.id)
+                          .then(() => toast.success(`已恢复：${todo.title}`))
+                          .catch((error) =>
+                            toast.error(error instanceof Error ? error.message : "恢复失败")
+                          );
                       }}
                       className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 transition-colors hover:bg-emerald-500/10 hover:text-emerald-600"
                       title="撤回已完成"

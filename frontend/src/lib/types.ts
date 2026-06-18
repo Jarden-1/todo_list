@@ -6,32 +6,47 @@ export type TodoPriority = "low" | "medium" | "high" | "urgent";
 
 export interface Subtask {
   id: string;
+  todoId?: string;
   title: string;
   done: boolean;
+  position?: number;
   createdAt: string;
-  completedAt?: string;
+  completedAt?: string | null;
+  deletedAt?: string | null;
+  purgeAfter?: string | null;
 }
 
 export interface Reminder {
   id: string;
+  todoId?: string;
   remindAt: string;
-  reason?: string;
-  sentAt?: string;
-  dismissedAt?: string;
+  reason?: string | null;
+  kind?: string;
+  createdAt?: string;
+  sentAt?: string | null;
+  dismissedAt?: string | null;
+  deletedAt?: string | null;
+  purgeAfter?: string | null;
 }
 
 export interface Project {
   id: string;
   name: string;
-  color?: string;
+  color?: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+  purgeAfter?: string | null;
 }
 
 export interface Tag {
   id: string;
   name: string;
-  color?: string;
+  color?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
+  purgeAfter?: string | null;
 }
 
 export interface Attachment {
@@ -39,8 +54,9 @@ export interface Attachment {
   type: "image" | "link" | "file";
   name?: string;
   url: string;
-  mimeType?: string;
+  mimeType?: string | null;
   size?: number;
+  todoId?: string | null;
   createdAt: string;
 }
 
@@ -73,8 +89,10 @@ export interface Todo {
   assignee?: string;          // 对接人（自由文本）
   createdAt: string;
   updatedAt: string;
-  completedAt?: string;
-  cancelledAt?: string;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  deletedAt?: string | null;
+  purgeAfter?: string | null;
 }
 
 export interface UndoRecord {

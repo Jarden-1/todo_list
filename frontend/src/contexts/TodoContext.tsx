@@ -1,197 +1,217 @@
 import React, {
   createContext,
-  useContext,
-  useState,
   useCallback,
+  useContext,
   useEffect,
+  useMemo,
+  useState,
 } from "react";
+import { getApiErrorMessage } from "../lib/apiClient";
+import {
+  applyUndo,
+  organizeTodo,
+} from "../lib/aiApi";
+import * as todosApi from "../lib/todosApi";
 import type {
-  AiOrganizeResult,
   Project,
   Tag,
   Todo,
+  TodoStatus,
   UndoRecord,
   ViewType,
 } from "../lib/types";
 import {
-  getTodos,
-  saveTodos,
-  getProjects,
-  saveProjects,
-  getTags,
-  saveTags,
-  getUndoRecord,
-  saveUndoRecord,
-} from "../lib/storage";
-import { createDuplicateTodo } from "../lib/todoClone";
-import {
-  applyTodoStatus,
-  applyTodoUpdates,
-  createAiMeta,
-  createProject,
-  createRemindersFromAi,
-  createSubtasksFromAi,
-  createTag,
-  createTodo,
-  createUndoRecord,
-  normalizeTodoReminders,
-  type TodoCreateInput,
-} from "../lib/todoFactory";
-import {
-  addTodoSubtask,
-  deleteTodoSubtask,
-  toggleTodoSubtask,
-} from "../lib/todoSubtaskUpdates";
-import type { TodoContextValue } from "./todoContextTypes";
+  fetchWorkspaceBootstrap,
+  type WorkspaceBootstrap,
+} from "../lib/workspaceApi";
+import { useAuth } from "./AuthContext";
 import { useSettings } from "./SettingsContext";
+import type { TodoContextValue } from "./todoContextTypes";
 
 const TodoContext = createContext<TodoContextValue | null>(null);
 
+function visibleTodos(todos: Todo[]) {
+  return todos.filter((todo) => !todo.deletedAt);
+}
+
+function visibleProjects(projects: Project[]) {
+  return projects.filter((project) => !project.deletedAt);
+}
+
+function visibleTags(tags: Tag[]) {
+  return tags.filter((tag) => !tag.deletedAt);
+}
+
+function upsertTodo(list: Todo[], todo: Todo) {
+  if (todo.deletedAt) {
+    return list.filter((item) => item.id !== todo.id);
+  }
+
+  const existingIndex = list.findIndex((item) => item.id === todo.id);
+  if (existingIndex === -1) return [todo, ...list];
+
+  const next = [...list];
+  next[existingIndex] = todo;
+  return next;
+}
+
+function upsertProject(list: Project[], project: Project) {
+  if (project.deletedAt) return list.filter((item) => item.id !== project.id);
+  return list.some((item) => item.id === project.id)
+    ? list.map((item) => (item.id === project.id ? project : item))
+    : [...list, project];
+}
+
+function upsertTag(list: Tag[], tag: Tag) {
+  if (tag.deletedAt) return list.filter((item) => item.id !== tag.id);
+  return list.some((item) => item.id === tag.id)
+    ? list.map((item) => (item.id === tag.id ? tag : item))
+    : [...list, tag];
+}
+
 export function TodoProvider({ children }: { children: React.ReactNode }) {
-  const { settings } = useSettings();
-  const [todos, setTodos] = useState<Todo[]>(() => getTodos());
-  const [projects, setProjects] = useState<Project[]>(() => getProjects());
-  const [tags, setTags] = useState<Tag[]>(() => getTags());
-  const [undoRecord, setUndoRecord] = useState<UndoRecord | null>(() => getUndoRecord());
+  const { user } = useAuth();
+  const { hydrateSettings } = useSettings();
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [undoRecord, setUndoRecord] = useState<UndoRecord | null>(null);
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>("today");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Persist on change
-  useEffect(() => { saveTodos(todos); }, [todos]);
-  useEffect(() => { saveProjects(projects); }, [projects]);
-  useEffect(() => { saveTags(tags); }, [tags]);
-  useEffect(() => { saveUndoRecord(undoRecord); }, [undoRecord]);
-  useEffect(() => {
-    setTodos((prev) => {
-      let changed = false;
-      const next = prev.map((todo) => {
-        const normalized = normalizeTodoReminders(todo, settings.ringtone.advanceMinutes);
-        if (normalized !== todo) changed = true;
-        return normalized;
-      });
-      return changed ? next : prev;
-    });
-  }, [settings.ringtone.advanceMinutes]);
+  const hydrateWorkspace = useCallback(
+    (bootstrap: WorkspaceBootstrap) => {
+      setTodos(visibleTodos(bootstrap.todos));
+      setProjects(visibleProjects(bootstrap.projects));
+      setTags(visibleTags(bootstrap.tags));
+      setUndoRecord(bootstrap.undoRecord ?? null);
+      hydrateSettings(bootstrap.settings);
+      setSelectedTodoId((prev) =>
+        prev && bootstrap.todos.some((todo) => todo.id === prev && !todo.deletedAt)
+          ? prev
+          : null
+      );
+      setError(null);
+    },
+    [hydrateSettings]
+  );
 
-  const addTodo = useCallback((partial: TodoCreateInput): Todo => {
-    const todo = createTodo(partial, new Date().toISOString(), {
-      advanceMinutes: settings.ringtone.advanceMinutes,
-    });
-    setTodos((prev) => [todo, ...prev]);
-    return todo;
-  }, [settings.ringtone.advanceMinutes]);
-
-  const updateTodo = useCallback((id: string, updates: Partial<Todo>) => {
-    setTodos((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-
-        return applyTodoUpdates(t, updates, new Date().toISOString(), {
-          advanceMinutes: settings.ringtone.advanceMinutes,
-        });
-      })
-    );
-  }, [settings.ringtone.advanceMinutes]);
-
-  const markReminderSent = useCallback((todoId: string, reminderId: string, sentAt = new Date().toISOString()) => {
-    setTodos((prev) =>
-      prev.map((todo) => {
-        if (todo.id !== todoId) return todo;
-
-        const reminders = todo.reminders.map((reminder) =>
-          reminder.id === reminderId ? { ...reminder, sentAt } : reminder
-        );
-
-        return { ...todo, reminders, updatedAt: sentAt };
-      })
-    );
-  }, []);
-
-  const deleteTodo = useCallback((id: string) => {
-    setTodos((prev) => prev.filter((t) => t.id !== id));
-    setSelectedTodoId((prev) => (prev === id ? null : prev));
-  }, []);
-
-  const restoreTodo = useCallback((todo: Todo, index?: number) => {
-    setTodos((prev) => {
-      const existingIndex = prev.findIndex((t) => t.id === todo.id);
-      if (existingIndex >= 0) {
-        return prev.map((t) => (t.id === todo.id ? todo : t));
+  const refreshWorkspace = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      try {
+        const bootstrap = await fetchWorkspaceBootstrap(signal);
+        hydrateWorkspace(bootstrap);
+        return bootstrap;
+      } catch (caught) {
+        if (signal?.aborted) throw caught;
+        const message = getApiErrorMessage(caught);
+        setError(message);
+        throw caught;
+      } finally {
+        if (!signal?.aborted) setLoading(false);
       }
+    },
+    [hydrateWorkspace]
+  );
 
-      const next = [...prev];
-      const insertIndex =
-        typeof index === "number"
-          ? Math.min(Math.max(index, 0), next.length)
-          : 0;
-      next.splice(insertIndex, 0, todo);
-      return next;
-    });
+  useEffect(() => {
+    if (!user) {
+      setTodos([]);
+      setProjects([]);
+      setTags([]);
+      setUndoRecord(null);
+      setSelectedTodoId(null);
+      setLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    void refreshWorkspace(controller.signal).catch(() => {});
+    return () => controller.abort();
+  }, [refreshWorkspace, user]);
+
+  const addTodo = useCallback(async (partial: todosApi.TodoCreateInput) => {
+    const { todo } = await todosApi.createTodo(partial);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
   }, []);
 
-  const replaceWorkspaceData = useCallback((data: {
-    todos?: Todo[];
-    projects?: Project[];
-    tags?: Tag[];
-    undoRecord?: UndoRecord | null;
-  }) => {
-    if (data.todos) setTodos(data.todos);
-    if (data.projects) setProjects(data.projects);
-    if (data.tags) setTags(data.tags);
-    if ("undoRecord" in data) setUndoRecord(data.undoRecord ?? null);
-    setSelectedTodoId(null);
+  const updateTodo = useCallback(
+    async (id: string, updates: todosApi.TodoPatchInput) => {
+      const { todo } = await todosApi.updateTodo(id, updates);
+      setTodos((prev) => upsertTodo(prev, todo));
+      return todo;
+    },
+    []
+  );
+
+  const markReminderSent = useCallback(
+    async (todoId: string, reminderId: string, sentAt?: string) => {
+      const { reminder } = await todosApi.markReminderSent(todoId, reminderId, sentAt);
+      setTodos((prev) =>
+        prev.map((todo) => {
+          if (todo.id !== todoId) return todo;
+          return {
+            ...todo,
+            reminders: todo.reminders.map((item) =>
+              item.id === reminderId ? { ...item, ...reminder } : item
+            ),
+            updatedAt: reminder.sentAt ?? todo.updatedAt,
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const deleteTodo = useCallback(async (id: string) => {
+    const { todo } = await todosApi.deleteTodo(id);
+    setTodos((prev) => upsertTodo(prev, todo));
+    setSelectedTodoId((prev) => (prev === id ? null : prev));
+    return todo;
   }, []);
 
-  const clearWorkspaceData = useCallback(() => {
-    setTodos([]);
-    setProjects([]);
-    setTags([]);
-    setUndoRecord(null);
-    setSelectedTodoId(null);
+  const restoreTodo = useCallback(async (id: string, status?: TodoStatus) => {
+    const { todo } = await todosApi.restoreTodo(id, status);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
   }, []);
 
-  const duplicateTodo = useCallback((id: string): Todo | null => {
-    const source = todos.find((todo) => todo.id === id);
-    if (!source) return null;
-
-    const duplicated = createDuplicateTodo(source);
-
-    setTodos((prev) => {
-      const sourceIndex = prev.findIndex((todo) => todo.id === id);
-      const next = [...prev];
-      next.splice(sourceIndex >= 0 ? sourceIndex + 1 : 0, 0, duplicated);
-      return next;
-    });
-
-    return duplicated;
-  }, [todos]);
-
-  const completeTodo = useCallback((id: string) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? applyTodoStatus(t, "done") : t))
-    );
+  const duplicateTodo = useCallback(async (id: string) => {
+    const { todo } = await todosApi.duplicateTodo(id);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
   }, []);
 
-  const uncompleteTodo = useCallback((id: string) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? applyTodoStatus(t, "todo") : t))
-    );
+  const completeTodo = useCallback(async (id: string) => {
+    const { todo } = await todosApi.completeTodo(id);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
   }, []);
 
-  const cancelTodo = useCallback((id: string) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? applyTodoStatus(t, "cancelled") : t))
-    );
+  const uncompleteTodo = useCallback(async (id: string) => {
+    const { todo } = await todosApi.uncompleteTodo(id);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
   }, []);
 
-  const addProject = useCallback((name: string, color?: string): Project => {
-    const project = createProject(name, color);
-    setProjects((prev) => [...prev, project]);
+  const cancelTodo = useCallback(async (id: string) => {
+    const { todo } = await todosApi.cancelTodo(id);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
+  }, []);
+
+  const addProject = useCallback(async (name: string, color?: string) => {
+    const { project } = await todosApi.createProject(name, color);
+    setProjects((prev) => upsertProject(prev, project));
     return project;
   }, []);
 
   const getProjectById = useCallback(
-    (id: string | undefined) => projects.find((p) => p.id === id),
+    (id: string | undefined | null) => projects.find((p) => p.id === id),
     [projects]
   );
 
@@ -200,114 +220,125 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
     [tags]
   );
 
-  const addTag = useCallback((name: string, color?: string): Tag => {
-    const tag = createTag(name, color);
-    setTags((prev) => [...prev, tag]);
+  const addTag = useCallback(async (name: string, color?: string) => {
+    const { tag } = await todosApi.createTag(name, color);
+    setTags((prev) => upsertTag(prev, tag));
     return tag;
   }, []);
 
   const addTodoFromAi = useCallback(
-    (result: AiOrganizeResult, originalInput: string): Todo => {
-      const now = new Date().toISOString();
-
-      // Resolve or create project
-      let projectId: string | undefined;
-      if (result.projectName) {
-        const existing = projects.find(
-          (p) => p.name.toLowerCase() === result.projectName!.toLowerCase()
-        );
-        if (existing) {
-          projectId = existing.id;
-        } else {
-          const newProj = createProject(result.projectName, undefined, now);
-          setProjects((prev) => [...prev, newProj]);
-          projectId = newProj.id;
-        }
-      }
-
-      const reminders = createRemindersFromAi(result.reminders);
-      const todo = addTodo({
-        title: result.title,
-        status: "todo",
-        priority: result.priority,
-        projectId,
-        tagIds: [],
-        dueAt: result.dueAt,
-        reminders: reminders.length > 0 ? reminders : undefined,
-        contentMarkdown: result.contentMarkdown ?? "",
-        originalInput,
-        subtasks: createSubtasksFromAi(result.subtasks, now),
-        attachments: [],
-        aiMeta: createAiMeta(result, now),
-      });
-
-      // Save undo record
-      setUndoRecord(createUndoRecord(todo.id, originalInput, now));
-
+    async (input: string) => {
+      const timezone = user?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const { todo, undoRecord: nextUndoRecord } = await organizeTodo(input, timezone);
+      setTodos((prev) => upsertTodo(prev, todo));
+      setUndoRecord(nextUndoRecord);
       return todo;
     },
-    [projects, addTodo]
+    [user?.timezone]
   );
 
-  const undoLastAiCreate = useCallback((): string | null => {
+  const undoLastAiCreate = useCallback(async () => {
     if (!undoRecord) return null;
-    const originalInput = undoRecord.originalInput;
-    deleteTodo(undoRecord.todoId);
+
+    const { originalInput, deletedTodoId } = await applyUndo(undoRecord.id);
+    setTodos((prev) => prev.filter((todo) => todo.id !== deletedTodoId));
     setUndoRecord(null);
+    setSelectedTodoId((prev) => (prev === deletedTodoId ? null : prev));
     return originalInput;
-  }, [undoRecord, deleteTodo]);
+  }, [undoRecord]);
 
-  const toggleSubtask = useCallback((todoId: string, subtaskId: string) => {
-    setTodos((prev) =>
-      prev.map((todo) => (todo.id === todoId ? toggleTodoSubtask(todo, subtaskId) : todo))
-    );
+  const toggleSubtask = useCallback(
+    async (todoId: string, subtaskId: string) => {
+      const todo = todos.find((item) => item.id === todoId);
+      const subtask = todo?.subtasks.find((item) => item.id === subtaskId);
+      const { todo: nextTodo } = await todosApi.updateSubtask(todoId, subtaskId, {
+        done: !subtask?.done,
+      });
+      setTodos((prev) => upsertTodo(prev, nextTodo));
+      return nextTodo;
+    },
+    [todos]
+  );
+
+  const addSubtask = useCallback(async (todoId: string, title: string) => {
+    const { todo } = await todosApi.createSubtask(todoId, title);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
   }, []);
 
-  const addSubtask = useCallback((todoId: string, title: string) => {
-    setTodos((prev) =>
-      prev.map((todo) => (todo.id === todoId ? addTodoSubtask(todo, title) : todo))
-    );
+  const deleteSubtask = useCallback(async (todoId: string, subtaskId: string) => {
+    const { todo } = await todosApi.deleteSubtask(todoId, subtaskId);
+    setTodos((prev) => upsertTodo(prev, todo));
+    return todo;
   }, []);
 
-  const deleteSubtask = useCallback((todoId: string, subtaskId: string) => {
-    setTodos((prev) =>
-      prev.map((todo) => (todo.id === todoId ? deleteTodoSubtask(todo, subtaskId) : todo))
-    );
-  }, []);
+  const value = useMemo<TodoContextValue>(
+    () => ({
+      todos,
+      projects,
+      tags,
+      undoRecord,
+      selectedTodoId,
+      currentView,
+      loading,
+      error,
+      setCurrentView,
+      setSelectedTodoId,
+      refreshWorkspace: () => refreshWorkspace(),
+      hydrateWorkspace,
+      addTodo,
+      updateTodo,
+      deleteTodo,
+      restoreTodo,
+      markReminderSent,
+      duplicateTodo,
+      completeTodo,
+      uncompleteTodo,
+      cancelTodo,
+      addProject,
+      getProjectById,
+      getTagById,
+      addTag,
+      addTodoFromAi,
+      undoLastAiCreate,
+      toggleSubtask,
+      addSubtask,
+      deleteSubtask,
+    }),
+    [
+      addProject,
+      addSubtask,
+      addTag,
+      addTodo,
+      addTodoFromAi,
+      cancelTodo,
+      completeTodo,
+      currentView,
+      deleteSubtask,
+      deleteTodo,
+      duplicateTodo,
+      error,
+      getProjectById,
+      getTagById,
+      hydrateWorkspace,
+      loading,
+      markReminderSent,
+      projects,
+      refreshWorkspace,
+      restoreTodo,
+      selectedTodoId,
+      tags,
+      todos,
+      toggleSubtask,
+      uncompleteTodo,
+      undoLastAiCreate,
+      undoRecord,
+      updateTodo,
+    ]
+  );
 
   return (
-    <TodoContext.Provider
-      value={{
-        todos,
-        projects,
-        tags,
-        undoRecord,
-        selectedTodoId,
-        currentView,
-        setCurrentView,
-        setSelectedTodoId,
-        addTodo,
-        updateTodo,
-        deleteTodo,
-        restoreTodo,
-        markReminderSent,
-        replaceWorkspaceData,
-        clearWorkspaceData,
-        duplicateTodo,
-        completeTodo,
-        uncompleteTodo,
-        cancelTodo,
-        addProject,
-        getProjectById,
-        getTagById,
-        addTag,
-        addTodoFromAi,
-        undoLastAiCreate,
-        toggleSubtask,
-        addSubtask,
-        deleteSubtask,
-      }}
-    >
+    <TodoContext.Provider value={value}>
       {children}
     </TodoContext.Provider>
   );

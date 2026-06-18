@@ -12,7 +12,6 @@ import { cn } from "../lib/utils";
 import { TodoActionsMenu } from "./TodoActionsMenu";
 import { playCompleteSound } from "../lib/completeSound";
 import { toast } from "sonner";
-import { cloneTodo } from "../lib/todoClone";
 import { formatTodoPreview } from "../lib/todoFormat";
 import { useSettings } from "../contexts/SettingsContext";
 
@@ -23,7 +22,7 @@ interface TodoCardProps {
 }
 
 export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
-  const { completeTodo, restoreTodo, getProjectById, setSelectedTodoId } = useTodo();
+  const { completeTodo, uncompleteTodo, getProjectById, setSelectedTodoId, refreshWorkspace } = useTodo();
   const { settings } = useSettings();
   const [completeFeedback, setCompleteFeedback] = useState(false);
   const completeTimerRef = useRef<number | null>(null);
@@ -46,7 +45,6 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
   const handleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isDone || isCancelled || completeTimerRef.current) return;
-    const snapshot = cloneTodo(todo);
 
     if (settings.feedback.completeSound) playCompleteSound();
     if (settings.feedback.completeAnimation) setCompleteFeedback(true);
@@ -55,7 +53,11 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
     const completionTimer = window.setTimeout(() => {
       completionApplied = true;
       completeTimerRef.current = null;
-      completeTodo(todo.id);
+      void completeTodo(todo.id).catch((error) => {
+        setCompleteFeedback(false);
+        toast.error(error instanceof Error ? error.message : "完成失败");
+        void refreshWorkspace().catch(() => {});
+      });
     }, 320);
     completeTimerRef.current = completionTimer;
 
@@ -75,7 +77,12 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
           if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
           feedbackTimerRef.current = null;
           setCompleteFeedback(false);
-          restoreTodo(snapshot);
+          if (completionApplied) {
+            void uncompleteTodo(todo.id).catch((error) => {
+              toast.error(error instanceof Error ? error.message : "撤销完成失败");
+              void refreshWorkspace().catch(() => {});
+            });
+          }
         },
       },
     });

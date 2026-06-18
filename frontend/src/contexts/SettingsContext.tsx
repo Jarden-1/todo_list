@@ -1,173 +1,227 @@
-// SmartTodo - Settings Context
-// Stores: AI assistant config, due reminders, and lightweight feedback settings
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
+import { getApiErrorMessage } from "../lib/apiClient";
+import {
+  deleteAiApiKey as deleteAiApiKeyRequest,
+  fetchSettings,
+  patchSettings,
+  replaceSettings as replaceSettingsRequest,
+  saveAiApiKey as saveAiApiKeyRequest,
+} from "../lib/settingsApi";
+import type {
+  AiModelConfig,
+  AppSettings,
+  FeedbackConfig,
+  RingtoneConfig,
+  ServerAppSettings,
+} from "../lib/settingsTypes";
+import {
+  DEFAULT_ASSISTANT_PROMPT,
+  DEFAULT_SETTINGS,
+  mergeSettings,
+  toServerSettings,
+} from "../lib/settingsTypes";
 
-export const DEFAULT_ASSISTANT_PROMPT = `你是 SmartTodo 的 AI 待办助手。
-
-请帮助用户把自然语言整理成清晰、可执行、适合长期回看的待办内容。
-你需要尽量识别标题、截止时间、优先级、项目、子任务、提醒和注意事项。
-不要虚构事实；不确定的信息要保守处理，并提醒用户确认。
-输出应简洁、具体，正文默认使用 Markdown。`;
-
-export interface AiModelConfig {
-  enabled: boolean;
-  model: string;
-  apiKey: string;
-  baseUrl: string;
-  assistantPrompt: string;
-}
-
-export interface RingtoneConfig {
-  enabled: boolean;
-  sound: string;          // preset sound name
-  volume: number;         // 0-100
-  advanceMinutes: number; // remind N minutes before due
-  browserNotificationsEnabled: boolean;
-  pushSubscriptionId?: string;
-  pushEndpoint?: string;
-}
-
-export interface FeedbackConfig {
-  completeSound: boolean;
-  completeAnimation: boolean;
-  operationSound: boolean;
-}
-
-export interface AppSettings {
-  schemaVersion: number;
-  aiModel: AiModelConfig;
-  ringtone: RingtoneConfig;
-  feedback: FeedbackConfig;
-}
-
-const SETTINGS_SCHEMA_VERSION = 2;
-
-const DEFAULT_SETTINGS: AppSettings = {
-  schemaVersion: SETTINGS_SCHEMA_VERSION,
-  aiModel: {
-    enabled: true,
-    model: "gpt-4o-mini",
-    apiKey: "",
-    baseUrl: "https://api.openai.com/v1",
-    assistantPrompt: DEFAULT_ASSISTANT_PROMPT,
-  },
-  ringtone: {
-    enabled: true,
-    sound: "chime",
-    volume: 70,
-    advanceMinutes: 15,
-    browserNotificationsEnabled: false,
-  },
-  feedback: {
-    completeSound: true,
-    completeAnimation: true,
-    operationSound: false,
-  },
+export { DEFAULT_ASSISTANT_PROMPT };
+export type {
+  AiModelConfig,
+  AppSettings,
+  FeedbackConfig,
+  RingtoneConfig,
+  ServerAppSettings,
 };
-
-const SETTINGS_KEY = "smarttodo:settings";
-
-function loadSettings(): AppSettings {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    const isLegacySettings = parsed.schemaVersion !== SETTINGS_SCHEMA_VERSION;
-
-    return {
-      schemaVersion: SETTINGS_SCHEMA_VERSION,
-      aiModel: {
-        ...DEFAULT_SETTINGS.aiModel,
-        ...(parsed.aiModel ?? {}),
-        enabled: isLegacySettings
-          ? DEFAULT_SETTINGS.aiModel.enabled
-          : parsed.aiModel?.enabled ?? DEFAULT_SETTINGS.aiModel.enabled,
-      },
-      ringtone: {
-        ...DEFAULT_SETTINGS.ringtone,
-        ...(parsed.ringtone ?? {}),
-        enabled: isLegacySettings
-          ? DEFAULT_SETTINGS.ringtone.enabled
-          : parsed.ringtone?.enabled ?? DEFAULT_SETTINGS.ringtone.enabled,
-        browserNotificationsEnabled: isLegacySettings
-          ? DEFAULT_SETTINGS.ringtone.browserNotificationsEnabled
-          : parsed.ringtone?.browserNotificationsEnabled ??
-            DEFAULT_SETTINGS.ringtone.browserNotificationsEnabled,
-      },
-      feedback: {
-        ...DEFAULT_SETTINGS.feedback,
-        ...(parsed.feedback ?? {}),
-      },
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
 
 interface SettingsContextValue {
   settings: AppSettings;
-  updateAiModel: (updates: Partial<AiModelConfig>) => void;
-  updateRingtone: (updates: Partial<RingtoneConfig>) => void;
-  updateFeedback: (updates: Partial<FeedbackConfig>) => void;
-  replaceSettings: (settings: Partial<AppSettings>) => void;
-  resetSettings: () => void;
+  loading: boolean;
+  error: string | null;
+  refreshSettings: () => Promise<AppSettings>;
+  hydrateSettings: (settings: ServerAppSettings | Partial<AppSettings> | null | undefined) => void;
+  updateAiModel: (updates: Partial<Omit<AiModelConfig, "hasApiKey">>) => Promise<void>;
+  updateRingtone: (updates: Partial<RingtoneConfig>) => Promise<void>;
+  updateFeedback: (updates: Partial<FeedbackConfig>) => Promise<void>;
+  replaceSettings: (settings: Partial<AppSettings> | ServerAppSettings) => Promise<void>;
+  resetSettings: () => Promise<void>;
+  saveAiApiKey: (apiKey: string) => Promise<void>;
+  deleteAiApiKey: () => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+function getLocalRingtoneState(settings: AppSettings): Partial<RingtoneConfig> {
+  return {
+    browserNotificationsEnabled: settings.ringtone.browserNotificationsEnabled,
+    pushSubscriptionId: settings.ringtone.pushSubscriptionId,
+    pushEndpoint: settings.ringtone.pushEndpoint,
+  };
+}
 
-  useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+function splitRingtonePatch(updates: Partial<RingtoneConfig>) {
+  const serverPatch: Partial<ServerAppSettings["ringtone"]> = {};
+  const localPatch: Partial<RingtoneConfig> = {};
+
+  if ("enabled" in updates) serverPatch.enabled = updates.enabled;
+  if ("sound" in updates) serverPatch.sound = updates.sound;
+  if ("volume" in updates) serverPatch.volume = updates.volume;
+  if ("advanceMinutes" in updates) serverPatch.advanceMinutes = updates.advanceMinutes;
+
+  if ("browserNotificationsEnabled" in updates) {
+    localPatch.browserNotificationsEnabled = updates.browserNotificationsEnabled;
+  }
+  if ("pushSubscriptionId" in updates) {
+    localPatch.pushSubscriptionId = updates.pushSubscriptionId;
+  }
+  if ("pushEndpoint" in updates) {
+    localPatch.pushEndpoint = updates.pushEndpoint;
+  }
+
+  return { serverPatch, localPatch };
+}
+
+function hasKeys(value: object) {
+  return Object.keys(value).length > 0;
+}
+
+export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const hydrateSettings = useCallback(
+    (incoming: ServerAppSettings | Partial<AppSettings> | null | undefined) => {
+      setSettings((prev) => mergeSettings(incoming, getLocalRingtoneState(prev)));
+      setError(null);
+    },
+    []
+  );
+
+  const refreshSettings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const remote = await fetchSettings();
+      const next = mergeSettings(remote, getLocalRingtoneState(settings));
+      setSettings(next);
+      setError(null);
+      return next;
+    } catch (caught) {
+      const message = getApiErrorMessage(caught);
+      setError(message);
+      throw caught;
+    } finally {
+      setLoading(false);
+    }
   }, [settings]);
 
-  const updateAiModel = (updates: Partial<AiModelConfig>) => {
-    setSettings((prev) => ({
-      ...prev,
-      aiModel: { ...prev.aiModel, ...updates },
-    }));
-  };
-
-  const updateRingtone = (updates: Partial<RingtoneConfig>) => {
-    setSettings((prev) => ({
-      ...prev,
-      ringtone: { ...prev.ringtone, ...updates },
-    }));
-  };
-
-  const updateFeedback = (updates: Partial<FeedbackConfig>) => {
-    setSettings((prev) => ({
-      ...prev,
-      feedback: { ...prev.feedback, ...updates },
-    }));
-  };
-
-  const replaceSettings = (incoming: Partial<AppSettings>) => {
-    setSettings({
-      schemaVersion: SETTINGS_SCHEMA_VERSION,
-      aiModel: {
-        ...DEFAULT_SETTINGS.aiModel,
-        ...(incoming.aiModel ?? {}),
-      },
-      ringtone: {
-        ...DEFAULT_SETTINGS.ringtone,
-        ...(incoming.ringtone ?? {}),
-      },
-      feedback: {
-        ...DEFAULT_SETTINGS.feedback,
-        ...(incoming.feedback ?? {}),
-      },
-    });
-  };
-
-  const resetSettings = () => setSettings(DEFAULT_SETTINGS);
-
-  return (
-    <SettingsContext.Provider value={{ settings, updateAiModel, updateRingtone, updateFeedback, replaceSettings, resetSettings }}>
-      {children}
-    </SettingsContext.Provider>
+  const updateAiModel = useCallback(
+    async (updates: Partial<Omit<AiModelConfig, "hasApiKey">>) => {
+      const remote = await patchSettings({ aiModel: updates });
+      setSettings((prev) => mergeSettings(remote, getLocalRingtoneState(prev)));
+      setError(null);
+    },
+    []
   );
+
+  const updateRingtone = useCallback(async (updates: Partial<RingtoneConfig>) => {
+    const { serverPatch, localPatch } = splitRingtonePatch(updates);
+
+    if (hasKeys(localPatch)) {
+      setSettings((prev) => ({
+        ...prev,
+        ringtone: { ...prev.ringtone, ...localPatch },
+      }));
+    }
+
+    if (!hasKeys(serverPatch)) {
+      setError(null);
+      return;
+    }
+
+    const remote = await patchSettings({ ringtone: serverPatch });
+    setSettings((prev) => mergeSettings(remote, {
+      ...getLocalRingtoneState(prev),
+      ...localPatch,
+    }));
+    setError(null);
+  }, []);
+
+  const updateFeedback = useCallback(async (updates: Partial<FeedbackConfig>) => {
+    const remote = await patchSettings({ feedback: updates });
+    setSettings((prev) => mergeSettings(remote, getLocalRingtoneState(prev)));
+    setError(null);
+  }, []);
+
+  const replaceSettings = useCallback(
+    async (incoming: Partial<AppSettings> | ServerAppSettings) => {
+      const next = mergeSettings(incoming, getLocalRingtoneState(settings));
+      const remote = await replaceSettingsRequest(toServerSettings(next));
+      setSettings((prev) => mergeSettings(remote, getLocalRingtoneState(prev)));
+      setError(null);
+    },
+    [settings]
+  );
+
+  const resetSettings = useCallback(async () => {
+    const next = mergeSettings(DEFAULT_SETTINGS, getLocalRingtoneState(settings));
+    const remote = await replaceSettingsRequest(toServerSettings(next));
+    setSettings((prev) => mergeSettings(remote, getLocalRingtoneState(prev)));
+    setError(null);
+  }, [settings]);
+
+  const saveAiApiKey = useCallback(async (apiKey: string) => {
+    const result = await saveAiApiKeyRequest(apiKey);
+    setSettings((prev) => ({
+      ...prev,
+      aiModel: { ...prev.aiModel, hasApiKey: result.hasApiKey },
+    }));
+    setError(null);
+  }, []);
+
+  const deleteAiApiKey = useCallback(async () => {
+    const result = await deleteAiApiKeyRequest();
+    setSettings((prev) => ({
+      ...prev,
+      aiModel: { ...prev.aiModel, hasApiKey: result.hasApiKey },
+    }));
+    setError(null);
+  }, []);
+
+  const value = useMemo<SettingsContextValue>(
+    () => ({
+      settings,
+      loading,
+      error,
+      refreshSettings,
+      hydrateSettings,
+      updateAiModel,
+      updateRingtone,
+      updateFeedback,
+      replaceSettings,
+      resetSettings,
+      saveAiApiKey,
+      deleteAiApiKey,
+    }),
+    [
+      deleteAiApiKey,
+      error,
+      hydrateSettings,
+      loading,
+      refreshSettings,
+      replaceSettings,
+      resetSettings,
+      saveAiApiKey,
+      settings,
+      updateAiModel,
+      updateFeedback,
+      updateRingtone,
+    ]
+  );
+
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
 export function useSettings(): SettingsContextValue {

@@ -29,12 +29,17 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
     });
   };
 
-  const handleAddProject = () => {
+  const handleAddProject = async () => {
     if (newProjectName.trim()) {
-      addProject(newProjectName.trim());
-      setNewProjectName("");
-      setShowNewProject(false);
-      toast.success(`项目「${newProjectName}」已创建`);
+      const name = newProjectName.trim();
+      try {
+        await addProject(name);
+        setNewProjectName("");
+        setShowNewProject(false);
+        toast.success(`项目「${name}」已创建`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "项目创建失败");
+      }
     }
   };
 
@@ -87,14 +92,14 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddProject();
+                if (e.key === "Enter") void handleAddProject();
                 if (e.key === "Escape") setShowNewProject(false);
               }}
               placeholder="项目名称…"
               className="field-input w-36"
             />
             <button
-              onClick={handleAddProject}
+              onClick={() => void handleAddProject()}
               className="text-xs text-primary hover:text-primary/80 px-2 py-1.5 rounded-lg bg-primary/10 transition-colors"
             >
               创建

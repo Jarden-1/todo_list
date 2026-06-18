@@ -7,7 +7,7 @@ import {
   type RefObject,
 } from "react";
 import { toast } from "sonner";
-import { readImageAsDataUrl } from "../../lib/markdownImages";
+import { uploadFile } from "../../lib/filesApi";
 import {
   RAW_MARKDOWN_PATTERN,
   escapeAttribute,
@@ -27,6 +27,7 @@ interface UseMarkdownEditorControllerOptions {
   richEditor: boolean;
   autoFocus?: boolean;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => void;
+  todoId?: string;
 }
 
 export function useMarkdownEditorController({
@@ -36,6 +37,7 @@ export function useMarkdownEditorController({
   richEditor,
   autoFocus,
   onKeyDown,
+  todoId,
 }: UseMarkdownEditorControllerOptions) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -182,19 +184,22 @@ export function useMarkdownEditorController({
     try {
       const images = await Promise.all(
         files.map(async (file) => {
-          const dataUrl = await readImageAsDataUrl(file);
-          return { label: escapeMarkdownLabel(file.name), dataUrl };
+          const { file: uploaded } = await uploadFile(file, { todoId, type: "image" });
+          return {
+            label: escapeMarkdownLabel(file.name),
+            url: uploaded.url || `/api/v1/files/${uploaded.id}/content`,
+          };
         })
       );
 
       if (richEditor) {
         richBridge.insertRichHtml(
           images
-            .map((image) => `<p><img src="${escapeAttribute(image.dataUrl)}" alt="${escapeAttribute(image.label)}" /></p>`)
+            .map((image) => `<p><img src="${escapeAttribute(image.url)}" alt="${escapeAttribute(image.label)}" /></p>`)
             .join("")
         );
       } else {
-        const block = `\n${images.map((image) => `![${image.label}](${image.dataUrl})`).join("\n\n")}\n`;
+        const block = `\n${images.map((image) => `![${image.label}](${image.url})`).join("\n\n")}\n`;
         insertText(block);
       }
 

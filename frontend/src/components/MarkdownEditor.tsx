@@ -35,6 +35,7 @@ interface MarkdownEditorProps {
   showFullscreenToggle?: boolean;
   onToggleFullscreen?: () => void;
   fullscreenToggleLabel?: string;
+  todoId?: string;
 }
 
 export function MarkdownEditor({
@@ -63,6 +64,7 @@ export function MarkdownEditor({
   showFullscreenToggle,
   onToggleFullscreen,
   fullscreenToggleLabel,
+  todoId,
 }: MarkdownEditorProps) {
   const localTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = textareaRef ?? localTextareaRef;
@@ -89,6 +91,7 @@ export function MarkdownEditor({
     richEditor,
     autoFocus,
     onKeyDown,
+    todoId,
   });
   const hasFloatingActions =
     resolvedToolbarMode === "responsive" &&
