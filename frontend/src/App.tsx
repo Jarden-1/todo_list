@@ -9,13 +9,27 @@ import Home from "./pages/Home";
 import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useAutoHideScrollbars } from "./hooks/useTransientScrollbar";
-import { useTodoReminderScheduler } from "./hooks/useTodoReminderScheduler";
+import { useNotifications } from "./hooks/useNotifications";
+import { NotificationDialog } from "./components/NotificationDialog";
 
 type AppPage = "home" | "login" | "settings";
 
-function AppServices() {
-  useTodoReminderScheduler();
-  return null;
+function AppServices({ onOpenTodo }: { onOpenTodo: (todoId: string) => void }) {
+  const {
+    activeNotification,
+    hasActiveNotification,
+    dismissActiveNotification,
+    viewActiveNotificationTodo,
+  } = useNotifications({ onOpenTodo });
+
+  return (
+    <NotificationDialog
+      notification={activeNotification}
+      open={hasActiveNotification}
+      onDismiss={dismissActiveNotification}
+      onViewTodo={viewActiveNotificationTodo}
+    />
+  );
 }
 
 function App() {
@@ -28,7 +42,7 @@ function App() {
         <SettingsProvider>
           <TodoProvider>
             <TooltipProvider>
-              <AppServices />
+              <AppServices onOpenTodo={() => setPage("home")} />
               <Toaster position="bottom-right" />
               {page === "login" ? (
                 <LoginPage onLogin={() => setPage("home")} />

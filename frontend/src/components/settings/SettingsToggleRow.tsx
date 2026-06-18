@@ -6,6 +6,7 @@ interface SettingsToggleRowProps {
   title: string;
   description: string;
   ariaLabel?: string;
+  disabled?: boolean;
 }
 
 export function SettingsToggleRow({
@@ -14,6 +15,7 @@ export function SettingsToggleRow({
   title,
   description,
   ariaLabel,
+  disabled,
 }: SettingsToggleRowProps) {
   return (
     <div className="settings-toggle-row">
@@ -26,6 +28,7 @@ export function SettingsToggleRow({
         onCheckedChange={onCheckedChange}
         aria-label={ariaLabel ?? title}
         className="h-6 w-11"
+        disabled={disabled}
       />
     </div>
   );

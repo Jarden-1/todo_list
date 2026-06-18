@@ -22,6 +22,9 @@ export interface RingtoneConfig {
   sound: string;          // preset sound name
   volume: number;         // 0-100
   advanceMinutes: number; // remind N minutes before due
+  browserNotificationsEnabled: boolean;
+  pushSubscriptionId?: string;
+  pushEndpoint?: string;
 }
 
 export interface FeedbackConfig {
@@ -53,6 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     sound: "chime",
     volume: 70,
     advanceMinutes: 15,
+    browserNotificationsEnabled: false,
   },
   feedback: {
     completeSound: true,
@@ -85,6 +89,10 @@ function loadSettings(): AppSettings {
         enabled: isLegacySettings
           ? DEFAULT_SETTINGS.ringtone.enabled
           : parsed.ringtone?.enabled ?? DEFAULT_SETTINGS.ringtone.enabled,
+        browserNotificationsEnabled: isLegacySettings
+          ? DEFAULT_SETTINGS.ringtone.browserNotificationsEnabled
+          : parsed.ringtone?.browserNotificationsEnabled ??
+            DEFAULT_SETTINGS.ringtone.browserNotificationsEnabled,
       },
       feedback: {
         ...DEFAULT_SETTINGS.feedback,
