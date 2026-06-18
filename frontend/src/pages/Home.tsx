@@ -1,5 +1,5 @@
 // SmartTodo - Main Home Page
-// Desktop: Left sidebar (224px) + Main content + Right detail panel (384px)
+// Desktop: Left sidebar + Main content + Right detail panel (responsive)
 // Mobile: Top header + Main content + Bottom nav + Detail drawer
 import { useState } from "react";
 import { Sidebar } from "../components/Sidebar";
@@ -13,19 +13,25 @@ import { ProjectsView } from "../components/views/ProjectsView";
 import { PriorityView } from "../components/views/PriorityView";
 import { CompletedView } from "../components/views/CompletedView";
 import { useTodo } from "../contexts/TodoContext";
-import { ScrollArea } from "../components/ui/scroll-area";
 import { Sun, Clock, FolderOpen, BarChart2, CheckCircle2, Menu, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useTransientScrollbar } from "../hooks/useTransientScrollbar";
+import { useDetailPanelLayout } from "../hooks/useDetailPanelLayout";
 
 const VIEW_CONFIG = {
-  today: { title: "今日", subtitle: "今天需要处理的任务", icon: Sun, iconColor: "text-amber-500" },
-  timeline: { title: "时间轴", subtitle: "按时间维度管理任务节奏", icon: Clock, iconColor: "text-primary" },
-  projects: { title: "项目", subtitle: "查看每个项目的推进情况", icon: FolderOpen, iconColor: "text-emerald-500" },
-  priority: { title: "优先级", subtitle: "聚焦高价值和紧急事项", icon: BarChart2, iconColor: "text-violet-500" },
+  today: { title: "今日待办", subtitle: "今天需要处理的任务", icon: Sun, iconColor: "text-amber-500" },
+  timeline: { title: "按时间分类", subtitle: "按时间维度管理任务节奏", icon: Clock, iconColor: "text-primary" },
+  projects: { title: "按项目分类", subtitle: "查看每个项目的推进情况", icon: FolderOpen, iconColor: "text-emerald-500" },
+  priority: { title: "按优先级分类", subtitle: "聚焦高价值和紧急事项", icon: BarChart2, iconColor: "text-violet-500" },
   completed: { title: "已完成", subtitle: "归档与回顾已完成的任务", icon: CheckCircle2, iconColor: "text-emerald-500" },
 };
 
-export default function Home() {
+interface HomeProps {
+  onOpenSettings: () => void;
+  onLogout: () => void;
+}
+
+export default function Home({ onOpenSettings, onLogout }: HomeProps) {
   const { currentView, selectedTodoId, setSelectedTodoId, todos } = useTodo();
   const selectedTodo = todos.find((t) => t.id === selectedTodoId);
   const viewConfig = VIEW_CONFIG[currentView];
@@ -33,54 +39,77 @@ export default function Home() {
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
+  const mainScroll = useTransientScrollbar<HTMLDivElement>();
+  const {
+    isDesktop,
+    detailPanelOpen,
+    detailPanelRendered,
+    detailPanelStyle,
+    renderedDetailTodo,
+    isDetailResizing,
+    closeDetailPanel,
+    clearCloseDetailTimer,
+    startDetailResize,
+  } = useDetailPanelLayout({
+    selectedTodo,
+    selectedTodoId,
+    setSelectedTodoId,
+  });
 
   const activeTodosCount = todos.filter(
     (t) => t.status !== "done" && t.status !== "cancelled"
   ).length;
 
-  const ViewContent = () => (
-    <>
-      {currentView === "today" && (
-        <TodayView
-          selectedId={selectedTodoId}
-          onSelect={(id) => setSelectedTodoId(selectedTodoId === id ? null : id)}
-        />
-      )}
-      {currentView === "timeline" && (
-        <TimelineView
-          selectedId={selectedTodoId}
-          onSelect={(id) => setSelectedTodoId(selectedTodoId === id ? null : id)}
-        />
-      )}
-      {currentView === "projects" && (
+  const handleSelectTodo = (id: string) => {
+    if (selectedTodoId === id) {
+      closeDetailPanel();
+      return;
+    }
+
+    clearCloseDetailTimer();
+    setSelectedTodoId(id);
+  };
+
+  const renderViewContent = () => {
+    if (currentView === "today") {
+      return <TodayView selectedId={selectedTodoId} onSelect={handleSelectTodo} />;
+    }
+
+    if (currentView === "timeline") {
+      return <TimelineView selectedId={selectedTodoId} onSelect={handleSelectTodo} />;
+    }
+
+    if (currentView === "projects") {
+      return (
         <ProjectsView
           selectedId={selectedTodoId}
-          onSelect={(id) => setSelectedTodoId(selectedTodoId === id ? null : id)}
+          onSelect={handleSelectTodo}
           filterProjectId={filterProjectId}
         />
-      )}
-      {currentView === "priority" && (
-        <PriorityView
-          selectedId={selectedTodoId}
-          onSelect={(id) => setSelectedTodoId(selectedTodoId === id ? null : id)}
-        />
-      )}
-      {currentView === "completed" && (
-        <CompletedView
-          selectedId={selectedTodoId}
-          onSelect={(id) => setSelectedTodoId(selectedTodoId === id ? null : id)}
-        />
-      )}
-    </>
-  );
+      );
+    }
+
+    if (currentView === "priority") {
+      return <PriorityView selectedId={selectedTodoId} onSelect={handleSelectTodo} />;
+    }
+
+    if (currentView === "completed") {
+      return <CompletedView selectedId={selectedTodoId} onSelect={handleSelectTodo} />;
+    }
+
+    return null;
+  };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-sidebar overflow-hidden">
       {/* Desktop Left Sidebar */}
       <div className="hidden md:flex h-full">
         <Sidebar
           filterProjectId={filterProjectId}
           onFilterProject={setFilterProjectId}
+          onOpenSettings={onOpenSettings}
+          onLogout={onLogout}
+          onNavigate={closeDetailPanel}
         />
       </div>
 
@@ -101,15 +130,24 @@ export default function Home() {
                 setFilterProjectId(id);
                 setMobileSidebarOpen(false);
               }}
+              onNavigate={closeDetailPanel}
+              onOpenSettings={() => {
+                setMobileSidebarOpen(false);
+                onOpenSettings();
+              }}
+              onLogout={() => {
+                setMobileSidebarOpen(false);
+                onLogout();
+              }}
             />
           </div>
         </div>
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="app-main-panel flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
         {/* Top header */}
-        <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-border flex-shrink-0 bg-background/95 backdrop-blur">
+        <header className="app-main-header h-16 flex items-center justify-between px-4 md:px-6 flex-shrink-0 bg-background/95 backdrop-blur">
           <div className="flex items-center gap-3">
             {/* Mobile menu button */}
             <button
@@ -146,20 +184,46 @@ export default function Home() {
         </div>
 
         {/* View content */}
-        <ScrollArea className="flex-1 px-4 md:px-6 pb-20 md:pb-6">
+        <div
+          ref={mainScroll.ref}
+          onScroll={mainScroll.onScroll}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-6 pb-20 md:pb-6"
+        >
           <div className="pt-2 pb-4">
-            <ViewContent />
+            {renderViewContent()}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Desktop Right detail panel */}
-      {selectedTodo && (
-        <div className="hidden md:flex w-96 flex-shrink-0 h-full overflow-hidden">
-          <TodoDetailPanel
-            todo={selectedTodo}
-            onClose={() => setSelectedTodoId(null)}
-          />
+      {detailPanelRendered && renderedDetailTodo && isDesktop && (
+        <div
+          className={cn(
+            "detail-panel-shell hidden md:flex relative flex-shrink-0 h-full",
+            isDetailResizing && "detail-panel-shell-resizing"
+          )}
+          data-state={detailPanelOpen ? "open" : "closed"}
+          style={detailPanelStyle}
+        >
+          <div
+            onPointerDown={startDetailResize}
+            className={cn(
+              "absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize group transition-opacity",
+              detailPanelOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}
+            aria-label="调整详情宽度"
+            role="separator"
+          >
+            <div className="absolute left-1/2 top-0 h-full w-px bg-transparent group-hover:bg-primary/50 transition-colors" />
+          </div>
+          <div className="detail-panel-clip h-full overflow-hidden">
+            <div className="detail-panel-inner">
+              <TodoDetailPanel
+                todo={renderedDetailTodo}
+                onClose={closeDetailPanel}
+              />
+            </div>
+          </div>
         </div>
       )}
 

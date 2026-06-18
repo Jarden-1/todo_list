@@ -1,4 +1,3 @@
-// SmartTodo - Todo State Management Context
 import React, {
   createContext,
   useContext,
@@ -6,17 +5,13 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
-import { nanoid } from "nanoid";
-import {
-  Todo,
+import type {
+  AiOrganizeResult,
   Project,
   Tag,
+  Todo,
   UndoRecord,
-  TodoStatus,
-  TodoPriority,
   ViewType,
-  AiOrganizeResult,
-  Subtask,
 } from "../lib/types";
 import {
   getTodos,
@@ -28,42 +23,25 @@ import {
   getUndoRecord,
   saveUndoRecord,
 } from "../lib/storage";
-
-interface TodoContextValue {
-  todos: Todo[];
-  projects: Project[];
-  tags: Tag[];
-  undoRecord: UndoRecord | null;
-  selectedTodoId: string | null;
-  currentView: ViewType;
-  setCurrentView: (view: ViewType) => void;
-  setSelectedTodoId: (id: string | null) => void;
-
-  // CRUD
-  addTodo: (partial: Partial<Todo> & { title: string }) => Todo;
-  updateTodo: (id: string, updates: Partial<Todo>) => void;
-  deleteTodo: (id: string) => void;
-  completeTodo: (id: string) => void;
-  uncompleteTodo: (id: string) => void; // 撤回已完成
-  cancelTodo: (id: string) => void;
-
-  // Projects
-  addProject: (name: string, color?: string) => Project;
-  getProjectById: (id: string | undefined) => Project | undefined;
-
-  // Tags
-  getTagById: (id: string) => Tag | undefined;
-  addTag: (name: string, color?: string) => Tag;
-
-  // AI
-  addTodoFromAi: (result: AiOrganizeResult, originalInput: string) => Todo;
-  undoLastAiCreate: () => string | null; // returns originalInput
-
-  // Subtasks
-  toggleSubtask: (todoId: string, subtaskId: string) => void;
-  addSubtask: (todoId: string, title: string) => void;
-  deleteSubtask: (todoId: string, subtaskId: string) => void;
-}
+import { createDuplicateTodo } from "../lib/todoClone";
+import {
+  applyTodoStatus,
+  applyTodoUpdates,
+  createAiMeta,
+  createProject,
+  createRemindersFromAi,
+  createSubtasksFromAi,
+  createTag,
+  createTodo,
+  createUndoRecord,
+  type TodoCreateInput,
+} from "../lib/todoFactory";
+import {
+  addTodoSubtask,
+  deleteTodoSubtask,
+  toggleTodoSubtask,
+} from "../lib/todoSubtaskUpdates";
+import type { TodoContextValue } from "./todoContextTypes";
 
 const TodoContext = createContext<TodoContextValue | null>(null);
 
@@ -81,34 +59,19 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { saveTags(tags); }, [tags]);
   useEffect(() => { saveUndoRecord(undoRecord); }, [undoRecord]);
 
-  const addTodo = useCallback((partial: Partial<Todo> & { title: string }): Todo => {
-    const now = new Date().toISOString();
-    const todo: Todo = {
-      id: nanoid(),
-      title: partial.title,
-      status: partial.status ?? "todo",
-      priority: partial.priority ?? "medium",
-      projectId: partial.projectId,
-      tagIds: partial.tagIds ?? [],
-      dueAt: partial.dueAt,
-      reminders: partial.reminders ?? [],
-      contentMarkdown: partial.contentMarkdown ?? "",
-      originalInput: partial.originalInput,
-      subtasks: partial.subtasks ?? [],
-      attachments: partial.attachments ?? [],
-      aiMeta: partial.aiMeta,
-      createdAt: now,
-      updatedAt: now,
-    };
+  const addTodo = useCallback((partial: TodoCreateInput): Todo => {
+    const todo = createTodo(partial);
     setTodos((prev) => [todo, ...prev]);
     return todo;
   }, []);
 
   const updateTodo = useCallback((id: string, updates: Partial<Todo>) => {
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
-      )
+      prev.map((t) => {
+        if (t.id !== id) return t;
+
+        return applyTodoUpdates(t, updates);
+      })
     );
   }, []);
 
@@ -117,47 +80,59 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
     setSelectedTodoId((prev) => (prev === id ? null : prev));
   }, []);
 
+  const restoreTodo = useCallback((todo: Todo, index?: number) => {
+    setTodos((prev) => {
+      const existingIndex = prev.findIndex((t) => t.id === todo.id);
+      if (existingIndex >= 0) {
+        return prev.map((t) => (t.id === todo.id ? todo : t));
+      }
+
+      const next = [...prev];
+      const insertIndex =
+        typeof index === "number"
+          ? Math.min(Math.max(index, 0), next.length)
+          : 0;
+      next.splice(insertIndex, 0, todo);
+      return next;
+    });
+  }, []);
+
+  const duplicateTodo = useCallback((id: string): Todo | null => {
+    const source = todos.find((todo) => todo.id === id);
+    if (!source) return null;
+
+    const duplicated = createDuplicateTodo(source);
+
+    setTodos((prev) => {
+      const sourceIndex = prev.findIndex((todo) => todo.id === id);
+      const next = [...prev];
+      next.splice(sourceIndex >= 0 ? sourceIndex + 1 : 0, 0, duplicated);
+      return next;
+    });
+
+    return duplicated;
+  }, [todos]);
+
   const completeTodo = useCallback((id: string) => {
-    const now = new Date().toISOString();
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status: "done" as TodoStatus, completedAt: now, updatedAt: now }
-          : t
-      )
+      prev.map((t) => (t.id === id ? applyTodoStatus(t, "done") : t))
     );
   }, []);
 
   const uncompleteTodo = useCallback((id: string) => {
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status: "todo" as TodoStatus, completedAt: undefined, updatedAt: new Date().toISOString() }
-          : t
-      )
+      prev.map((t) => (t.id === id ? applyTodoStatus(t, "todo") : t))
     );
   }, []);
 
   const cancelTodo = useCallback((id: string) => {
-    const now = new Date().toISOString();
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status: "cancelled" as TodoStatus, cancelledAt: now, updatedAt: now }
-          : t
-      )
+      prev.map((t) => (t.id === id ? applyTodoStatus(t, "cancelled") : t))
     );
   }, []);
 
   const addProject = useCallback((name: string, color?: string): Project => {
-    const now = new Date().toISOString();
-    const project: Project = {
-      id: nanoid(),
-      name,
-      color: color ?? "#6366F1",
-      createdAt: now,
-      updatedAt: now,
-    };
+    const project = createProject(name, color);
     setProjects((prev) => [...prev, project]);
     return project;
   }, []);
@@ -173,7 +148,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addTag = useCallback((name: string, color?: string): Tag => {
-    const tag: Tag = { id: nanoid(), name, color: color ?? "#6366F1" };
+    const tag = createTag(name, color);
     setTags((prev) => [...prev, tag]);
     return tag;
   }, []);
@@ -191,83 +166,33 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
         if (existing) {
           projectId = existing.id;
         } else {
-          const newProj: Project = {
-            id: nanoid(),
-            name: result.projectName,
-            color: "#6366F1",
-            createdAt: now,
-            updatedAt: now,
-          };
+          const newProj = createProject(result.projectName, undefined, now);
           setProjects((prev) => [...prev, newProj]);
           projectId = newProj.id;
         }
       }
-
-      // Resolve or create tags
-      const tagIds: string[] = [];
-      if (result.tags) {
-        for (const tagName of result.tags) {
-          const existing = tags.find(
-            (t) => t.name.toLowerCase() === tagName.toLowerCase()
-          );
-          if (existing) {
-            tagIds.push(existing.id);
-          } else {
-            const newTag: Tag = { id: nanoid(), name: tagName, color: "#8B5CF6" };
-            setTags((prev) => [...prev, newTag]);
-            tagIds.push(newTag.id);
-          }
-        }
-      }
-
-      const subtasks: Subtask[] = (result.subtasks ?? []).map((title) => ({
-        id: nanoid(),
-        title,
-        done: false,
-        createdAt: now,
-      }));
-
-      const reminders = (result.reminders ?? []).map((r) => ({
-        id: nanoid(),
-        remindAt: r.remindAt,
-        reason: r.reason,
-      }));
 
       const todo = addTodo({
         title: result.title,
         status: "todo",
         priority: result.priority,
         projectId,
-        tagIds,
+        tagIds: [],
         dueAt: result.dueAt,
-        reminders,
+        reminders: createRemindersFromAi(result.reminders),
         contentMarkdown: result.contentMarkdown ?? "",
         originalInput,
-        subtasks,
+        subtasks: createSubtasksFromAi(result.subtasks, now),
         attachments: [],
-        aiMeta: {
-          aiGenerated: true,
-          aiModel: "gpt-4o",
-          aiCreatedAt: now,
-          confidence: result.confidence,
-          warnings: result.warnings,
-        },
+        aiMeta: createAiMeta(result, now),
       });
 
       // Save undo record
-      const undoRec: UndoRecord = {
-        id: nanoid(),
-        action: "ai_create_todo",
-        todoId: todo.id,
-        originalInput,
-        createdAt: now,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      };
-      setUndoRecord(undoRec);
+      setUndoRecord(createUndoRecord(todo.id, originalInput, now));
 
       return todo;
     },
-    [projects, tags, addTodo]
+    [projects, addTodo]
   );
 
   const undoLastAiCreate = useCallback((): string | null => {
@@ -280,45 +205,19 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
 
   const toggleSubtask = useCallback((todoId: string, subtaskId: string) => {
     setTodos((prev) =>
-      prev.map((t) => {
-        if (t.id !== todoId) return t;
-        const now = new Date().toISOString();
-        return {
-          ...t,
-          subtasks: t.subtasks.map((s) =>
-            s.id === subtaskId
-              ? { ...s, done: !s.done, completedAt: !s.done ? now : undefined }
-              : s
-          ),
-          updatedAt: now,
-        };
-      })
+      prev.map((todo) => (todo.id === todoId ? toggleTodoSubtask(todo, subtaskId) : todo))
     );
   }, []);
 
   const addSubtask = useCallback((todoId: string, title: string) => {
-    const now = new Date().toISOString();
-    const subtask: Subtask = { id: nanoid(), title, done: false, createdAt: now };
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === todoId
-          ? { ...t, subtasks: [...t.subtasks, subtask], updatedAt: now }
-          : t
-      )
+      prev.map((todo) => (todo.id === todoId ? addTodoSubtask(todo, title) : todo))
     );
   }, []);
 
   const deleteSubtask = useCallback((todoId: string, subtaskId: string) => {
     setTodos((prev) =>
-      prev.map((t) =>
-        t.id === todoId
-          ? {
-              ...t,
-              subtasks: t.subtasks.filter((s) => s.id !== subtaskId),
-              updatedAt: new Date().toISOString(),
-            }
-          : t
-      )
+      prev.map((todo) => (todo.id === todoId ? deleteTodoSubtask(todo, subtaskId) : todo))
     );
   }, []);
 
@@ -336,6 +235,8 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
         addTodo,
         updateTodo,
         deleteTodo,
+        restoreTodo,
+        duplicateTodo,
         completeTodo,
         uncompleteTodo,
         cancelTodo,

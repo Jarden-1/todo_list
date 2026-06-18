@@ -10,10 +10,10 @@ const NAV_ITEMS: Array<{
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: "today", label: "今日", icon: Sun },
-  { id: "timeline", label: "时间轴", icon: Clock },
-  { id: "projects", label: "项目", icon: FolderOpen },
-  { id: "priority", label: "优先级", icon: BarChart2 },
+  { id: "today", label: "今日待办", icon: Sun },
+  { id: "timeline", label: "按时间分类", icon: Clock },
+  { id: "projects", label: "按项目分类", icon: FolderOpen },
+  { id: "priority", label: "按优先级分类", icon: BarChart2 },
   { id: "completed", label: "已完成", icon: CheckCircle2 },
 ];
 
@@ -28,7 +28,7 @@ export function MobileNav() {
   ).length;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[oklch(0.11_0.012_265)] border-t border-white/8 flex md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border/60 flex md:hidden">
       {NAV_ITEMS.map((item) => {
         const isActive = currentView === item.id;
         const Icon = item.icon;
@@ -40,7 +40,7 @@ export function MobileNav() {
             onClick={() => setCurrentView(item.id)}
             className={cn(
               "flex-1 flex flex-col items-center justify-center py-2.5 gap-1 relative",
-              isActive ? "text-indigo-400" : "text-slate-600"
+              isActive ? "text-primary" : "text-muted-foreground"
             )}
           >
             <div className="relative">
@@ -51,9 +51,9 @@ export function MobileNav() {
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <span className="max-w-full text-center text-[9px] font-medium leading-tight">{item.label}</span>
             {isActive && (
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-indigo-400 rounded-full" />
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />
             )}
           </button>
         );

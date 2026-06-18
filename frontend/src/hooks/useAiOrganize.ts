@@ -13,7 +13,7 @@ export function useAiOrganize(options: UseAiOrganizeOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   const organize = useCallback(
-    async (input: string, context?: { projects?: string[]; tags?: string[] }) => {
+    async (input: string, context?: { projects?: string[] }) => {
       if (!input.trim()) return;
       setLoading(true);
       setError(null);
@@ -25,7 +25,6 @@ export function useAiOrganize(options: UseAiOrganizeOptions = {}) {
 当前时间：${now.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
 用户时区：Asia/Shanghai
 已有项目：${context?.projects?.join("、") ?? "无"}
-已有标签：${context?.tags?.join("、") ?? "无"}
 
 请返回以下 JSON 格式（不要有任何其他内容，只返回 JSON）：
 {
@@ -34,7 +33,6 @@ export function useAiOrganize(options: UseAiOrganizeOptions = {}) {
   "priority": "low|medium|high|urgent",
   "dueAt": "ISO 8601 格式的截止时间（如果能识别到，否则不填）",
   "reminders": [{"remindAt": "ISO 8601", "reason": "提醒原因"}],
-  "tags": ["标签1", "标签2"],
   "subtasks": ["子任务1", "子任务2"],
   "contentMarkdown": "Markdown 格式的详细内容，包含目标、子任务列表、注意事项等",
   "confidence": {

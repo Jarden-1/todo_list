@@ -1,11 +1,12 @@
 // SmartTodo - Completed View
-// Features: grouped by date, restore/uncomplete button, delete button
+// Features: grouped by date, restore/uncomplete button, contextual actions menu
 import { useTodo } from "../../contexts/TodoContext";
-import { CheckCircle2, RotateCcw, Trash2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { parseISO, format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
+import { TodoActionsMenu } from "../TodoActionsMenu";
 
 interface CompletedViewProps {
   selectedId: string | null;
@@ -13,7 +14,7 @@ interface CompletedViewProps {
 }
 
 export function CompletedView({ selectedId, onSelect }: CompletedViewProps) {
-  const { todos, uncompleteTodo, deleteTodo, getProjectById } = useTodo();
+  const { todos, uncompleteTodo, getProjectById, setSelectedTodoId } = useTodo();
 
   const completedTodos = todos
     .filter((t) => t.status === "done")
@@ -81,7 +82,19 @@ export function CompletedView({ selectedId, onSelect }: CompletedViewProps) {
                     )}
                     style={{ animationDelay: `${i * 30}ms` }}
                   >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        uncompleteTodo(todo.id);
+                        toast.success(`已恢复：${todo.title}`);
+                      }}
+                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 transition-colors hover:bg-emerald-500/10 hover:text-emerald-600"
+                      title="撤回已完成"
+                      aria-label={`撤回已完成：${todo.title}`}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
 
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-muted-foreground line-through line-clamp-1">
@@ -108,33 +121,19 @@ export function CompletedView({ selectedId, onSelect }: CompletedViewProps) {
                       </div>
                     </div>
 
-                    {/* Actions */}
                     <div className={cn(
                       "flex items-center gap-1 transition-opacity",
                       isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                     )}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          uncompleteTodo(todo.id);
-                          toast.success(`已恢复：${todo.title}`);
+                      <TodoActionsMenu
+                        todo={todo}
+                        triggerClassName="h-7 w-7"
+                        onDeleted={() => {
+                          if (selectedId === todo.id) setSelectedTodoId(null);
                         }}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                        title="撤回已完成"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteTodo(todo.id);
-                          toast.success("已删除");
-                        }}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="删除"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        onRestored={() => setSelectedTodoId(todo.id)}
+                        onDuplicated={(duplicatedTodo) => setSelectedTodoId(duplicatedTodo.id)}
+                      />
                     </div>
                   </div>
                 );
