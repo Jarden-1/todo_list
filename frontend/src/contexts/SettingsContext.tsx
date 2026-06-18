@@ -1,14 +1,20 @@
 // SmartTodo - Settings Context
-// Stores: AI model config, ringtone/reminder settings
+// Stores: AI assistant config and ringtone/reminder settings
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+export const DEFAULT_ASSISTANT_PROMPT = `你是 SmartTodo 的 AI 待办助手。
+
+请帮助用户把自然语言整理成清晰、可执行、适合长期回看的待办内容。
+你需要尽量识别标题、截止时间、优先级、项目、子任务、提醒和注意事项。
+不要虚构事实；不确定的信息要保守处理，并提醒用户确认。
+输出应简洁、具体，正文默认使用 Markdown。`;
+
 export interface AiModelConfig {
-  provider: string;       // e.g. "OpenAI", "Anthropic", "Custom"
-  model: string;          // e.g. "gpt-4o-mini", "claude-3-5-sonnet"
-  apiKey: string;         // user-provided key (stored locally only)
-  baseUrl: string;        // API base URL
-  maxTokens: number;
-  temperature: number;
+  enabled: boolean;
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+  assistantPrompt: string;
 }
 
 export interface RingtoneConfig {
@@ -25,12 +31,11 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = {
   aiModel: {
-    provider: "OpenAI",
+    enabled: false,
     model: "gpt-4o-mini",
     apiKey: "",
     baseUrl: "https://api.openai.com/v1",
-    maxTokens: 1024,
-    temperature: 0.3,
+    assistantPrompt: DEFAULT_ASSISTANT_PROMPT,
   },
   ringtone: {
     enabled: false,
@@ -46,7 +51,18 @@ function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+
+    return {
+      aiModel: {
+        ...DEFAULT_SETTINGS.aiModel,
+        ...(parsed.aiModel ?? {}),
+      },
+      ringtone: {
+        ...DEFAULT_SETTINGS.ringtone,
+        ...(parsed.ringtone ?? {}),
+      },
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }

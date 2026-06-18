@@ -3,7 +3,6 @@ export const PRESET_MODELS = [
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
   { value: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
   { value: "deepseek-chat", label: "DeepSeek Chat" },
-  { value: "custom", label: "自定义模型" },
 ];
 
 export const ADVANCE_OPTIONS = [

@@ -1,6 +1,8 @@
 // SmartTodo - AI Organize Hook
 // Uses the built-in Forge API to call LLM for todo organization
 import { useState, useCallback } from "react";
+import { useSettings } from "../contexts/SettingsContext";
+import { resolveAiClientConfig } from "../lib/aiClientConfig";
 import { AiOrganizeResult } from "../lib/types";
 
 interface UseAiOrganizeOptions {
@@ -11,6 +13,7 @@ interface UseAiOrganizeOptions {
 export function useAiOrganize(options: UseAiOrganizeOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { settings } = useSettings();
 
   const organize = useCallback(
     async (input: string, context?: { projects?: string[] }) => {
@@ -19,8 +22,11 @@ export function useAiOrganize(options: UseAiOrganizeOptions = {}) {
       setError(null);
 
       try {
+        const aiConfig = resolveAiClientConfig(settings.aiModel);
         const now = new Date();
-        const systemPrompt = `你是一个智能待办整理助手。用户会给你一段自然语言描述，你需要将其整理成结构化的待办事项。
+        const systemPrompt = `${aiConfig.assistantPrompt}
+
+用户会给你一段自然语言描述，你需要将其整理成结构化的待办事项。
 
 当前时间：${now.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
 用户时区：Asia/Shanghai
@@ -52,17 +58,14 @@ export function useAiOrganize(options: UseAiOrganizeOptions = {}) {
 - "晚上" → 20:00
 - 如果不确定，confidence.dueAt 设为 "low"`;
 
-        const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL;
-        const apiKey = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
-
-        const response = await fetch(`${apiUrl}/chat/completions`, {
+        const response = await fetch(aiConfig.chatCompletionsUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${aiConfig.apiKey}`,
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: aiConfig.model,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: input },
@@ -92,7 +95,7 @@ export function useAiOrganize(options: UseAiOrganizeOptions = {}) {
         setLoading(false);
       }
     },
-    [options]
+    [options, settings.aiModel]
   );
 
   return { organize, loading, error };

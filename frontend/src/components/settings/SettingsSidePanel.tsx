@@ -1,7 +1,6 @@
-import { Database, LogOut, Moon, Sun, User } from "lucide-react";
+import { Database, LogOut, User } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "../../contexts/SettingsContext";
-import { useTheme } from "../../contexts/ThemeContext";
 
 interface SettingsSidePanelProps {
   onLogout: () => void;
@@ -9,7 +8,6 @@ interface SettingsSidePanelProps {
 
 export function SettingsSidePanel({ onLogout }: SettingsSidePanelProps) {
   const { resetSettings } = useSettings();
-  const { theme, toggleTheme } = useTheme();
 
   return (
     <aside className="glass-card overflow-hidden rounded-lg lg:sticky lg:top-20">
@@ -31,25 +29,6 @@ export function SettingsSidePanel({ onLogout }: SettingsSidePanelProps) {
           <LogOut className="h-3.5 w-3.5" />
           退出登录
         </button>
-      </section>
-
-      <section className="border-t border-border/50 p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15">
-            <Sun className="h-3.5 w-3.5 text-violet-500" />
-          </div>
-          <h2 className="text-sm font-bold text-foreground">外观</h2>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">主题模式</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{theme === "dark" ? "深色" : "亮色"}</p>
-          </div>
-          <button onClick={toggleTheme} className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs hover:bg-muted/80">
-            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            切换
-          </button>
-        </div>
       </section>
 
       <section className="border-t border-border/50 p-5">

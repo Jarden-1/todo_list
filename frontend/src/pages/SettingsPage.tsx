@@ -21,7 +21,7 @@ export default function SettingsPage({ onBack, onLogout }: SettingsPageProps) {
         </button>
         <div>
           <h1 className="font-display text-sm font-bold text-foreground">设置</h1>
-          <p className="hidden text-[10px] text-muted-foreground sm:block">账户、AI、提醒与外观</p>
+          <p className="hidden text-[10px] text-muted-foreground sm:block">账户、AI 助手与提醒</p>
         </div>
       </header>
 

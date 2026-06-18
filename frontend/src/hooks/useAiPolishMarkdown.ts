@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { useSettings } from "../contexts/SettingsContext";
+import { resolveAiClientConfig } from "../lib/aiClientConfig";
 import {
   replaceEmbeddedImagesWithPlaceholders,
   restoreEmbeddedImagePlaceholders,
@@ -12,6 +14,7 @@ interface UseAiPolishMarkdownOptions {
 export function useAiPolishMarkdown(options: UseAiPolishMarkdownOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { settings } = useSettings();
 
   const polish = useCallback(
     async (input: string) => {
@@ -20,8 +23,11 @@ export function useAiPolishMarkdown(options: UseAiPolishMarkdownOptions = {}) {
       setError(null);
 
       try {
+        const aiConfig = resolveAiClientConfig(settings.aiModel);
         const { markdownWithPlaceholders, images } = replaceEmbeddedImagesWithPlaceholders(input);
-        const systemPrompt = `你是一个待办正文润色助手。请把用户输入整理成清晰、可执行的 Markdown 正文。
+        const systemPrompt = `${aiConfig.assistantPrompt}
+
+请把用户输入整理成清晰、可执行的 Markdown 正文。
 
 要求：
 - 只返回 Markdown，不要解释。
@@ -30,17 +36,14 @@ export function useAiPolishMarkdown(options: UseAiPolishMarkdownOptions = {}) {
 - 保留 [[IMAGE_N: 名称]] 这种图片占位符，不能删除、改名或移动到无关位置。
 - 如果内容里有 - [ ] 或 - [x] 子任务，请保留这种 Markdown 任务列表格式。`;
 
-        const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL;
-        const apiKey = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
-
-        const response = await fetch(`${apiUrl}/chat/completions`, {
+        const response = await fetch(aiConfig.chatCompletionsUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${aiConfig.apiKey}`,
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: aiConfig.model,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: markdownWithPlaceholders },
@@ -69,7 +72,7 @@ export function useAiPolishMarkdown(options: UseAiPolishMarkdownOptions = {}) {
         setLoading(false);
       }
     },
-    [options]
+    [options, settings.aiModel]
   );
 
   return { polish, loading, error };
