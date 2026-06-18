@@ -1,3 +1,5 @@
+import { apiRequest, getApiErrorMessage } from "./apiClient";
+
 export type SmartTodoNotificationType = "reminder" | string;
 
 export interface SmartTodoNotification {
@@ -25,77 +27,7 @@ export interface SavedPushSubscription {
   subscription: PushSubscriptionServerRecord;
 }
 
-interface ApiEnvelope<T> {
-  data: T;
-  meta?: {
-    nextCursor?: string | null;
-  };
-}
-
-export class SmartTodoApiError extends Error {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "SmartTodoApiError";
-    this.status = status;
-  }
-}
-
-const configuredApiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-const API_BASE = configuredApiBase.endsWith("/api/v1")
-  ? configuredApiBase
-  : `${configuredApiBase}/api/v1`;
-
-function buildApiUrl(path: string) {
-  return `${API_BASE}${path}`;
-}
-
-async function readApiError(response: Response) {
-  try {
-    const payload = await response.json();
-    return payload?.message ?? payload?.error ?? response.statusText;
-  } catch {
-    return response.statusText;
-  }
-}
-
-async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(buildApiUrl(path), {
-    credentials: "include",
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
-
-  if (!response.ok) {
-    throw new SmartTodoApiError(await readApiError(response), response.status);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const payload = (await response.json()) as ApiEnvelope<T> | T;
-  if (payload && typeof payload === "object" && "data" in payload) {
-    return (payload as ApiEnvelope<T>).data;
-  }
-  return payload as T;
-}
-
-export function getApiErrorMessage(error: unknown) {
-  if (error instanceof SmartTodoApiError) {
-    if (error.status === 404) {
-      return "后端通知接口暂不可用（404），等后端实现后即可开启。";
-    }
-    return error.message;
-  }
-  if (error instanceof Error) return error.message;
-  return "请求失败，请稍后再试";
-}
+export { getApiErrorMessage };
 
 export function fetchUnreadNotifications(signal?: AbortSignal) {
   const params = new URLSearchParams({ unread: "true", type: "reminder" });

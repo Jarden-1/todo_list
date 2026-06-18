@@ -11,8 +11,9 @@ import SettingsPage from "./pages/SettingsPage";
 import { useAutoHideScrollbars } from "./hooks/useTransientScrollbar";
 import { useNotifications } from "./hooks/useNotifications";
 import { NotificationDialog } from "./components/NotificationDialog";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
-type AppPage = "home" | "login" | "settings";
+type AppPage = "home" | "settings";
 
 function AppServices({ onOpenTodo }: { onOpenTodo: (todoId: string) => void }) {
   const {
@@ -32,28 +33,60 @@ function AppServices({ onOpenTodo }: { onOpenTodo: (todoId: string) => void }) {
   );
 }
 
-function App() {
+function LoadingScreen() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+        正在确认登录状态...
+      </div>
+    </main>
+  );
+}
+
+function AuthenticatedApp() {
+  const { logout } = useAuth();
   const [page, setPage] = useState<AppPage>("home");
+
+  const handleLogout = async () => {
+    await logout();
+    setPage("home");
+  };
+
+  return (
+    <SettingsProvider>
+      <TodoProvider>
+        <AppServices onOpenTodo={() => setPage("home")} />
+        {page === "settings" ? (
+          <SettingsPage onBack={() => setPage("home")} onLogout={handleLogout} />
+        ) : (
+          <Home onOpenSettings={() => setPage("settings")} onLogout={handleLogout} />
+        )}
+      </TodoProvider>
+    </SettingsProvider>
+  );
+}
+
+function AppShell() {
+  const { user, loading } = useAuth();
   useAutoHideScrollbars();
 
+  if (loading) return <LoadingScreen />;
+  if (!user) return <LoginPage />;
+
+  return <AuthenticatedApp />;
+}
+
+function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light" switchable>
-        <SettingsProvider>
-          <TodoProvider>
-            <TooltipProvider>
-              <AppServices onOpenTodo={() => setPage("home")} />
-              <Toaster position="bottom-right" />
-              {page === "login" ? (
-                <LoginPage onLogin={() => setPage("home")} />
-              ) : page === "settings" ? (
-                <SettingsPage onBack={() => setPage("home")} onLogout={() => setPage("login")} />
-              ) : (
-                <Home onOpenSettings={() => setPage("settings")} onLogout={() => setPage("login")} />
-              )}
-            </TooltipProvider>
-          </TodoProvider>
-        </SettingsProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster position="bottom-right" />
+            <AppShell />
+          </TooltipProvider>
+        </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

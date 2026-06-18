@@ -15,6 +15,25 @@ import {
   replaceSettingsSchema,
   saveAiKeySchema
 } from "./settings.schemas";
+import { recomputeDefaultDueRemindersForUser } from "../todos/reminders.service";
+
+async function consumeSettingsEvents(
+  app: FastifyInstance,
+  events: Array<{ type: string; userId: string; nextAdvanceMinutes?: number }>
+): Promise<void> {
+  for (const event of events) {
+    if (
+      event.type === "settings.ringtoneAdvanceMinutesChanged" &&
+      typeof event.nextAdvanceMinutes === "number"
+    ) {
+      await recomputeDefaultDueRemindersForUser(
+        app.prisma,
+        event.userId,
+        event.nextAdvanceMinutes
+      );
+    }
+  }
+}
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("onRequest", async (request) => {
@@ -32,6 +51,8 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     const body = replaceSettingsSchema.parse(request.body);
     const result = await replaceSettings(app.prisma, userId, body);
 
+    await consumeSettingsEvents(app, result.events);
+
     return dataResponse(result.settings);
   });
 
@@ -39,6 +60,8 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     const { userId } = requireAuth(request);
     const body = patchSettingsSchema.parse(request.body);
     const result = await patchSettings(app.prisma, userId, body);
+
+    await consumeSettingsEvents(app, result.events);
 
     return dataResponse(result.settings);
   });

@@ -89,7 +89,10 @@ async function findDueReminders(
       dismissedAt: null,
       deletedAt: null,
       todo: {
-        deletedAt: null
+        deletedAt: null,
+        status: {
+          notIn: ["done", "cancelled"]
+        }
       }
     },
     include: {

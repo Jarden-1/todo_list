@@ -3,12 +3,17 @@ import fs from "node:fs/promises";
 import test from "node:test";
 
 import type { PrismaClient } from "@prisma/client";
+import type { FastifyInstance } from "fastify";
 import type Redis from "ioredis";
 
 import { buildApp } from "../app";
 import { uploadDir } from "../config";
 import { runPurgeSoftDeletedWorkerOnce } from "../jobs/purgeSoftDeletedWorker";
-import { writeLocalFile } from "../modules/files/localDiskStorage";
+import { runReminderWorkerOnce } from "../jobs/reminderWorker";
+import {
+  resolveLocalStoragePath,
+  writeLocalFile
+} from "../modules/files/localDiskStorage";
 import { createFakeRedis, createInMemoryPrisma } from "./inMemoryPrisma";
 
 function jsonHeaders(cookie?: string): Record<string, string> {
@@ -22,6 +27,29 @@ function getSessionCookie(setCookie: string | string[] | undefined): string {
   const raw = Array.isArray(setCookie) ? setCookie[0] : setCookie;
   assert.ok(raw, "expected Set-Cookie header");
   return raw.split(";")[0] ?? raw;
+}
+
+async function registerAndGetCookie(
+  app: FastifyInstance,
+  input: {
+    loginName: string;
+    password?: string;
+    displayName?: string;
+  }
+): Promise<string> {
+  const register = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/register",
+    headers: jsonHeaders(),
+    payload: JSON.stringify({
+      loginName: input.loginName,
+      password: input.password ?? "demo123",
+      displayName: input.displayName
+    })
+  });
+
+  assert.equal(register.statusCode, 201);
+  return getSessionCookie(register.headers["set-cookie"]);
 }
 
 function multipartBody(input: {
@@ -205,7 +233,21 @@ test("first-phase API integration flow", async () => {
     assert.equal(file.mimeType, "text/plain");
     assert.equal(file.size, Buffer.byteLength("hello file"));
     assert.equal(file.url, `/api/v1/files/${file.id}/content`);
-    assert.equal(prisma.__state.attachments[0]?.storageProvider, "local");
+    const uploadedAttachment = prisma.__state.attachments[0];
+    assert.ok(uploadedAttachment);
+    assert.equal(uploadedAttachment.storageProvider, "local");
+    assert.equal(
+      await fs.readFile(resolveLocalStoragePath(uploadedAttachment.storageKey), "utf8"),
+      "hello file"
+    );
+
+    const fileContent = await app.inject({
+      method: "GET",
+      url: `/api/v1/files/${file.id}/content`,
+      headers: { cookie }
+    });
+    assert.equal(fileContent.statusCode, 200);
+    assert.equal(fileContent.headers["content-type"], "text/plain");
 
     const subscription = await app.inject({
       method: "POST",
@@ -247,6 +289,312 @@ test("first-phase API integration flow", async () => {
   } finally {
     await app.close();
     await fs.rm(uploadDir, { recursive: true, force: true });
+  }
+});
+
+test("auth uniqueness and user-scoped todo access", async () => {
+  const prisma = createInMemoryPrisma();
+  const app = await buildApp({
+    prisma: prisma as unknown as PrismaClient,
+    redis: createFakeRedis() as unknown as Redis
+  });
+
+  try {
+    const suffix = Date.now();
+    const ownerCookie = await registerAndGetCookie(app, {
+      loginName: `Owner-${suffix}`,
+      displayName: "Owner"
+    });
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/register",
+      headers: jsonHeaders(),
+      payload: JSON.stringify({
+        loginName: `owner-${suffix}`,
+        password: "demo123",
+        displayName: "Duplicate"
+      })
+    });
+    assert.equal(duplicate.statusCode, 409);
+    assert.equal(duplicate.json().error.code, "LOGIN_NAME_TAKEN");
+
+    const outsiderCookie = await registerAndGetCookie(app, {
+      loginName: `outsider-${suffix}`,
+      displayName: "Outsider"
+    });
+
+    const createTodo = await app.inject({
+      method: "POST",
+      url: "/api/v1/todos",
+      headers: jsonHeaders(ownerCookie),
+      payload: JSON.stringify({
+        title: "Owner-only task"
+      })
+    });
+    assert.equal(createTodo.statusCode, 201);
+    const todoId = createTodo.json().data.todo.id;
+
+    const outsiderList = await app.inject({
+      method: "GET",
+      url: "/api/v1/todos",
+      headers: { cookie: outsiderCookie }
+    });
+    assert.equal(outsiderList.statusCode, 200);
+    assert.deepEqual(outsiderList.json().data, []);
+
+    const outsiderGet = await app.inject({
+      method: "GET",
+      url: `/api/v1/todos/${todoId}`,
+      headers: { cookie: outsiderCookie }
+    });
+    assert.equal(outsiderGet.statusCode, 404);
+
+    const ownerGet = await app.inject({
+      method: "GET",
+      url: `/api/v1/todos/${todoId}`,
+      headers: { cookie: ownerCookie }
+    });
+    assert.equal(ownerGet.statusCode, 200);
+    assert.equal(ownerGet.json().data.todo.title, "Owner-only task");
+  } finally {
+    await app.close();
+  }
+});
+
+test("default due reminders are recomputed and completed todos do not notify", async () => {
+  const prisma = createInMemoryPrisma();
+  const redis = createFakeRedis() as unknown as Redis;
+  const app = await buildApp({
+    prisma: prisma as unknown as PrismaClient,
+    redis
+  });
+
+  try {
+    const cookie = await registerAndGetCookie(app, {
+      loginName: `reminder-${Date.now()}`,
+      displayName: "Reminder User"
+    });
+    const dueAt = "2026-06-18T10:00:00.000Z";
+
+    const createTodo = await app.inject({
+      method: "POST",
+      url: "/api/v1/todos",
+      headers: jsonHeaders(cookie),
+      payload: JSON.stringify({
+        title: "Timed task",
+        dueAt
+      })
+    });
+    assert.equal(createTodo.statusCode, 201);
+    const todo = createTodo.json().data.todo;
+    assert.equal(todo.reminders.length, 1);
+    assert.equal(todo.reminders[0].remindAt, "2026-06-18T09:45:00.000Z");
+
+    const patchSettings = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/settings",
+      headers: jsonHeaders(cookie),
+      payload: JSON.stringify({
+        ringtone: {
+          advanceMinutes: 30
+        }
+      })
+    });
+    assert.equal(patchSettings.statusCode, 200);
+
+    const refreshedTodo = await app.inject({
+      method: "GET",
+      url: `/api/v1/todos/${todo.id}`,
+      headers: { cookie }
+    });
+    assert.equal(refreshedTodo.statusCode, 200);
+    const refreshedReminders = refreshedTodo.json().data.todo.reminders;
+    assert.equal(refreshedReminders.length, 1);
+    assert.equal(refreshedReminders[0].remindAt, "2026-06-18T09:30:00.000Z");
+
+    const due = await app.inject({
+      method: "GET",
+      url: "/api/v1/reminders/due?before=2026-06-18T09:31:00.000Z",
+      headers: { cookie }
+    });
+    assert.equal(due.statusCode, 200);
+    assert.equal(due.json().data.length, 1);
+    assert.equal(due.json().data[0].todoId, todo.id);
+
+    const complete = await app.inject({
+      method: "POST",
+      url: `/api/v1/todos/${todo.id}/complete`,
+      headers: { cookie }
+    });
+    assert.equal(complete.statusCode, 200);
+
+    const dueAfterComplete = await app.inject({
+      method: "GET",
+      url: "/api/v1/reminders/due?before=2026-06-18T11:00:00.000Z",
+      headers: { cookie }
+    });
+    assert.equal(dueAfterComplete.statusCode, 200);
+    assert.deepEqual(dueAfterComplete.json().data, []);
+
+    const workerResult = await runReminderWorkerOnce({
+      prisma: prisma as unknown as PrismaClient,
+      redis,
+      now: () => new Date("2026-06-18T11:00:00.000Z")
+    });
+    assert.equal(workerResult.scanned, 0);
+    assert.equal(workerResult.created, 0);
+    assert.equal(prisma.__state.notificationEvents.length, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test("workspace import replaces only the current user's data", async () => {
+  const prisma = createInMemoryPrisma();
+  const app = await buildApp({
+    prisma: prisma as unknown as PrismaClient,
+    redis: createFakeRedis() as unknown as Redis
+  });
+
+  try {
+    const suffix = Date.now();
+    const ownerCookie = await registerAndGetCookie(app, {
+      loginName: `workspace-${suffix}`
+    });
+    const otherCookie = await registerAndGetCookie(app, {
+      loginName: `workspace-other-${suffix}`
+    });
+
+    const project = await app.inject({
+      method: "POST",
+      url: "/api/v1/projects",
+      headers: jsonHeaders(ownerCookie),
+      payload: JSON.stringify({
+        name: "Original Project",
+        color: "#2563EB"
+      })
+    });
+    assert.equal(project.statusCode, 201);
+    const projectId = project.json().data.project.id;
+
+    const tag = await app.inject({
+      method: "POST",
+      url: "/api/v1/tags",
+      headers: jsonHeaders(ownerCookie),
+      payload: JSON.stringify({
+        name: "Original Tag",
+        color: "#16A34A"
+      })
+    });
+    assert.equal(tag.statusCode, 201);
+    const tagId = tag.json().data.tag.id;
+
+    const originalTodo = await app.inject({
+      method: "POST",
+      url: "/api/v1/todos",
+      headers: jsonHeaders(ownerCookie),
+      payload: JSON.stringify({
+        title: "Original Todo",
+        projectId,
+        tagIds: [tagId],
+        subtasks: [{ title: "Keep this subtask" }]
+      })
+    });
+    assert.equal(originalTodo.statusCode, 201);
+
+    const backupResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/workspace/export",
+      headers: { cookie: ownerCookie }
+    });
+    assert.equal(backupResponse.statusCode, 200);
+    const backup = backupResponse.json().data;
+
+    const extraOwnerTodo = await app.inject({
+      method: "POST",
+      url: "/api/v1/todos",
+      headers: jsonHeaders(ownerCookie),
+      payload: JSON.stringify({
+        title: "Temporary Owner Todo"
+      })
+    });
+    assert.equal(extraOwnerTodo.statusCode, 201);
+
+    const otherTodo = await app.inject({
+      method: "POST",
+      url: "/api/v1/todos",
+      headers: jsonHeaders(otherCookie),
+      payload: JSON.stringify({
+        title: "Other User Todo"
+      })
+    });
+    assert.equal(otherTodo.statusCode, 201);
+
+    const importResponse = await app.inject({
+      method: "PUT",
+      url: "/api/v1/workspace/import",
+      headers: jsonHeaders(ownerCookie),
+      payload: JSON.stringify({
+        mode: "replace",
+        backup
+      })
+    });
+    assert.equal(importResponse.statusCode, 200);
+    assert.equal(importResponse.json().data.imported.todos, 1);
+
+    const ownerBootstrap = await app.inject({
+      method: "GET",
+      url: "/api/v1/workspace/bootstrap",
+      headers: { cookie: ownerCookie }
+    });
+    assert.equal(ownerBootstrap.statusCode, 200);
+    const ownerWorkspace = ownerBootstrap.json().data;
+    assert.deepEqual(
+      ownerWorkspace.todos.map((item: { title: string }) => item.title),
+      ["Original Todo"]
+    );
+    assert.equal(ownerWorkspace.projects[0].name, "Original Project");
+    assert.equal(ownerWorkspace.tags[0].name, "Original Tag");
+    assert.equal(ownerWorkspace.todos[0].subtasks[0].title, "Keep this subtask");
+
+    const otherTodos = await app.inject({
+      method: "GET",
+      url: "/api/v1/todos",
+      headers: { cookie: otherCookie }
+    });
+    assert.equal(otherTodos.statusCode, 200);
+    assert.deepEqual(
+      otherTodos.json().data.map((item: { title: string }) => item.title),
+      ["Other User Todo"]
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test("empty settings patch is rejected", async () => {
+  const prisma = createInMemoryPrisma();
+  const app = await buildApp({
+    prisma: prisma as unknown as PrismaClient,
+    redis: createFakeRedis() as unknown as Redis
+  });
+
+  try {
+    const cookie = await registerAndGetCookie(app, {
+      loginName: `settings-${Date.now()}`
+    });
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/settings",
+      headers: jsonHeaders(cookie),
+      payload: JSON.stringify({})
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, "VALIDATION_ERROR");
+  } finally {
+    await app.close();
   }
 });
 

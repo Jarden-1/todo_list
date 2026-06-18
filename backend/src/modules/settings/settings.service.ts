@@ -256,6 +256,7 @@ export async function patchSettings(
   input: PatchSettingsInput
 ): Promise<SettingsMutationResult> {
   const existing = await getOrCreateSettingsRecord(prisma, userId);
+  const previousAdvanceMinutes = existing.ringtoneAdvanceMinutes;
   const now = new Date();
   const settings = await prisma.userSetting.update({
     where: { userId },
@@ -264,11 +265,9 @@ export async function patchSettings(
 
   return {
     settings: toSettingsDto(settings),
-    // TODO(todos/notifications): consume this event to recompute unsent
-    // default due reminders when the user's advance-minutes preference changes.
     events: buildAdvanceMinutesEvent(
       userId,
-      existing.ringtoneAdvanceMinutes,
+      previousAdvanceMinutes,
       settings.ringtoneAdvanceMinutes,
       now
     )

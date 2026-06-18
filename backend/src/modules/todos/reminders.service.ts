@@ -7,6 +7,9 @@ import { toReminderDto } from "./todo.dto";
 import type { ReminderInput } from "./todos.schemas";
 
 type ReminderDb = Pick<PrismaClient, "reminder" | "todo" | "userSetting">;
+type ReminderRecomputeDb = Pick<PrismaClient, "reminder" | "todo">;
+
+const DEFAULT_DUE_REMINDER_REASON = "截止时间提醒";
 
 export async function getRingtoneAdvanceMinutes(
   db: ReminderDb,
@@ -40,7 +43,7 @@ export async function buildDefaultReminderInputs(
   return [
     {
       remindAt: remindAt.toISOString(),
-      reason: "截止时间提醒",
+      reason: DEFAULT_DUE_REMINDER_REASON,
       kind: "due"
     }
   ];
@@ -84,6 +87,78 @@ export async function softDeleteActiveReminders(
   });
 }
 
+export async function recomputeDefaultDueRemindersForUser(
+  db: ReminderRecomputeDb,
+  userId: string,
+  advanceMinutes: number,
+  now = new Date()
+): Promise<{ replaced: number; created: number }> {
+  const timestamps = getSoftDeleteTimestamps(now);
+  const replaced = await db.reminder.updateMany({
+    where: {
+      userId,
+      kind: "due",
+      reason: DEFAULT_DUE_REMINDER_REASON,
+      sentAt: null,
+      dismissedAt: null,
+      deletedAt: null
+    },
+    data: {
+      deletedAt: timestamps.deletedAt,
+      purgeAfter: timestamps.purgeAfter
+    }
+  });
+  const todos = await db.todo.findMany({
+    where: {
+      userId,
+      deletedAt: null,
+      dueAt: {
+        not: null
+      },
+      status: {
+        notIn: ["done", "cancelled"]
+      }
+    },
+    select: {
+      id: true,
+      dueAt: true
+    }
+  });
+  const reminderRows = todos.flatMap((todo) => {
+    if (!todo.dueAt) {
+      return [];
+    }
+
+    const remindAt = new Date(todo.dueAt);
+    remindAt.setUTCMinutes(remindAt.getUTCMinutes() - advanceMinutes);
+
+    return [
+      {
+        id: createEntityId("rem"),
+        userId,
+        todoId: todo.id,
+        remindAt,
+        reason: DEFAULT_DUE_REMINDER_REASON,
+        kind: "due",
+        createdAt: now,
+        sentAt: null,
+        dismissedAt: null
+      }
+    ];
+  });
+
+  if (reminderRows.length > 0) {
+    await db.reminder.createMany({
+      data: reminderRows
+    });
+  }
+
+  return {
+    replaced: replaced.count,
+    created: reminderRows.length
+  };
+}
+
 export class RemindersService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -99,7 +174,10 @@ export class RemindersService {
         },
         todo: {
           userId,
-          deletedAt: null
+          deletedAt: null,
+          status: {
+            notIn: ["done", "cancelled"]
+          }
         }
       },
       orderBy: {
