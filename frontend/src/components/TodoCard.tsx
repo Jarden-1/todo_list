@@ -14,16 +14,17 @@ import { playCompleteSound } from "../lib/completeSound";
 import { toast } from "sonner";
 import { cloneTodo } from "../lib/todoClone";
 import { formatTodoPreview } from "../lib/todoFormat";
+import { useSettings } from "../contexts/SettingsContext";
 
 interface TodoCardProps {
   todo: Todo;
   isSelected?: boolean;
   onClick?: () => void;
-  style?: React.CSSProperties;
 }
 
-export function TodoCard({ todo, isSelected, onClick, style }: TodoCardProps) {
+export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
   const { completeTodo, restoreTodo, getProjectById, setSelectedTodoId } = useTodo();
+  const { settings } = useSettings();
   const [completeFeedback, setCompleteFeedback] = useState(false);
   const completeTimerRef = useRef<number | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
@@ -47,8 +48,8 @@ export function TodoCard({ todo, isSelected, onClick, style }: TodoCardProps) {
     if (isDone || isCancelled || completeTimerRef.current) return;
     const snapshot = cloneTodo(todo);
 
-    playCompleteSound();
-    setCompleteFeedback(true);
+    if (settings.feedback.completeSound) playCompleteSound();
+    if (settings.feedback.completeAnimation) setCompleteFeedback(true);
 
     let completionApplied = false;
     const completionTimer = window.setTimeout(() => {
@@ -60,7 +61,7 @@ export function TodoCard({ todo, isSelected, onClick, style }: TodoCardProps) {
 
     feedbackTimerRef.current = window.setTimeout(() => {
       feedbackTimerRef.current = null;
-      setCompleteFeedback(false);
+      if (settings.feedback.completeAnimation) setCompleteFeedback(false);
     }, 520);
 
     toast.success("待办已完成", {
@@ -83,7 +84,6 @@ export function TodoCard({ todo, isSelected, onClick, style }: TodoCardProps) {
   return (
     <div
       onClick={onClick}
-      style={style}
       className={cn(
         "todo-card group glass-card rounded-xl px-4 py-3 cursor-pointer select-none",
         getPriorityStripeClass(todo.priority),

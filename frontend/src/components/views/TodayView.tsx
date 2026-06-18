@@ -1,10 +1,9 @@
 // SmartTodo - Today View
 // Strong visual hierarchy: overdue > today > high-priority
 import { useTodo } from "../../contexts/TodoContext";
-import { TodoCard } from "../TodoCard";
 import { isOverdue, isTodayDate } from "../../lib/dateUtils";
 import { Sun, AlertCircle, Flame } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { TodoTimelineList } from "../TodoTimelineList";
 
 interface TodayViewProps {
   selectedId: string | null;
@@ -61,22 +60,12 @@ export function TodayView({ selectedId, onSelect }: TodayViewProps) {
               {overdueTodos.length}
             </span>
           </div>
-          {/* Urgent banner for first overdue item */}
-          <div className="space-y-2">
-            {overdueTodos.map((todo, i) => (
-              <div key={todo.id} className={cn(i === 0 && overdueTodos.length > 0 && "relative")}>
-                {i === 0 && (
-                  <div className="absolute -left-3 top-0 bottom-0 w-0.5 bg-destructive rounded-full" />
-                )}
-                <TodoCard
-                  todo={todo}
-                  isSelected={selectedId === todo.id}
-                  onClick={() => onSelect(todo.id)}
-                  style={{ animationDelay: `${i * 40}ms` }}
-                />
-              </div>
-            ))}
-          </div>
+          <TodoTimelineList
+            todos={overdueTodos}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            labelMode="relative"
+          />
         </div>
       )}
 
@@ -94,17 +83,7 @@ export function TodayView({ selectedId, onSelect }: TodayViewProps) {
               {todayTodos.length}
             </span>
           </div>
-          <div className="space-y-2">
-            {todayTodos.map((todo, i) => (
-              <TodoCard
-                key={todo.id}
-                todo={todo}
-                isSelected={selectedId === todo.id}
-                onClick={() => onSelect(todo.id)}
-                style={{ animationDelay: `${i * 40}ms` }}
-              />
-            ))}
-          </div>
+          <TodoTimelineList todos={todayTodos} selectedId={selectedId} onSelect={onSelect} />
         </div>
       )}
 
@@ -122,17 +101,11 @@ export function TodayView({ selectedId, onSelect }: TodayViewProps) {
               {noDateHighPriority.length}
             </span>
           </div>
-          <div className="space-y-2">
-            {noDateHighPriority.map((todo, i) => (
-              <TodoCard
-                key={todo.id}
-                todo={todo}
-                isSelected={selectedId === todo.id}
-                onClick={() => onSelect(todo.id)}
-                style={{ animationDelay: `${i * 40}ms` }}
-              />
-            ))}
-          </div>
+          <TodoTimelineList
+            todos={noDateHighPriority}
+            selectedId={selectedId}
+            onSelect={onSelect}
+          />
         </div>
       )}
     </div>

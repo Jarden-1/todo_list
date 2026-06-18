@@ -4,6 +4,7 @@ import { useTodo } from "../../contexts/TodoContext";
 import { TodoCard } from "../TodoCard";
 import { TodoPriority } from "../../lib/types";
 import { BarChart2, ChevronDown, ChevronRight } from "lucide-react";
+import { sortTodosByDueTime } from "../../lib/todoSort";
 
 interface PriorityViewProps {
   selectedId: string | null;
@@ -47,7 +48,7 @@ export function PriorityView({ selectedId, onSelect }: PriorityViewProps) {
   return (
     <div className="space-y-3">
       {PRIORITY_GROUPS.map((group) => {
-        const list = activeTodos.filter((t) => t.priority === group.priority);
+        const list = sortTodosByDueTime(activeTodos.filter((t) => t.priority === group.priority));
         if (list.length === 0) return null;
         const isCollapsed = collapsed.has(group.priority);
         const toggleGroup = () => {
@@ -78,13 +79,12 @@ export function PriorityView({ selectedId, onSelect }: PriorityViewProps) {
             </button>
             {!isCollapsed && (
             <div className="px-3 pb-3 pt-2 space-y-2">
-              {list.map((todo, i) => (
+              {list.map((todo) => (
                 <TodoCard
                   key={todo.id}
                   todo={todo}
                   isSelected={selectedId === todo.id}
                   onClick={() => onSelect(todo.id)}
-                  style={{ animationDelay: `${i * 40}ms` }}
                 />
               ))}
             </div>

@@ -16,12 +16,66 @@ import type {
 } from "./types";
 
 export type TodoCreateInput = Partial<Todo> & { title: string };
+export interface TodoFactoryOptions {
+  advanceMinutes?: number;
+}
 
 const DEFAULT_PROJECT_COLOR = "#6366F1";
 
-export function createTodo(input: TodoCreateInput, now = new Date().toISOString()): Todo {
+export function createDefaultReminder(dueAt: string, advanceMinutes: number): Reminder {
+  const dueTime = Date.parse(dueAt);
+  const remindAt = Number.isFinite(dueTime)
+    ? new Date(dueTime - Math.max(advanceMinutes, 0) * 60 * 1000).toISOString()
+    : dueAt;
+
+  return {
+    id: nanoid(),
+    remindAt,
+    reason: "截止时间提醒",
+  };
+}
+
+export function normalizeTodoReminders(
+  todo: Todo,
+  advanceMinutes: number,
+  now = new Date().toISOString()
+): Todo {
+  if (!todo.dueAt) {
+    return todo.reminders.length === 0 ? todo : { ...todo, reminders: [], updatedAt: now };
+  }
+
+  const existing = todo.reminders[0];
+  const nextReminder = createDefaultReminder(todo.dueAt, advanceMinutes);
+  const nextReminderTime = Date.parse(nextReminder.remindAt);
+  const nowTime = Date.parse(now);
+  const migratedSentAt =
+    !existing && Number.isFinite(nextReminderTime) && Number.isFinite(nowTime) && nextReminderTime < nowTime
+      ? now
+      : undefined;
+
+  if (
+    todo.reminders.length === 1 &&
+    existing.remindAt === nextReminder.remindAt &&
+    existing.reason === nextReminder.reason
+  ) {
+    return todo;
+  }
+
+  return {
+    ...todo,
+    reminders: [{ ...nextReminder, sentAt: existing?.sentAt ?? migratedSentAt }],
+    updatedAt: now,
+  };
+}
+
+export function createTodo(
+  input: TodoCreateInput,
+  now = new Date().toISOString(),
+  options: TodoFactoryOptions = {}
+): Todo {
   const contentMarkdown = input.contentMarkdown ?? "";
   const markdownSubtasks = parseMarkdownTasks(contentMarkdown);
+  const advanceMinutes = options.advanceMinutes ?? 15;
 
   return {
     id: nanoid(),
@@ -31,7 +85,9 @@ export function createTodo(input: TodoCreateInput, now = new Date().toISOString(
     projectId: input.projectId,
     tagIds: input.tagIds ?? [],
     dueAt: input.dueAt,
-    reminders: input.reminders ?? [],
+    reminders:
+      input.reminders ??
+      (input.dueAt ? [createDefaultReminder(input.dueAt, advanceMinutes)] : []),
     contentMarkdown,
     originalInput: input.originalInput,
     subtasks: input.subtasks ?? (
@@ -47,8 +103,14 @@ export function createTodo(input: TodoCreateInput, now = new Date().toISOString(
   };
 }
 
-export function applyTodoUpdates(todo: Todo, updates: Partial<Todo>, now = new Date().toISOString()) {
+export function applyTodoUpdates(
+  todo: Todo,
+  updates: Partial<Todo>,
+  now = new Date().toISOString(),
+  options: TodoFactoryOptions = {}
+) {
   const next: Todo = { ...todo, ...updates, updatedAt: now };
+  const advanceMinutes = options.advanceMinutes ?? 15;
 
   if (updates.contentMarkdown !== undefined && updates.subtasks === undefined) {
     const markdownTasks = parseMarkdownTasks(updates.contentMarkdown);
@@ -56,6 +118,10 @@ export function applyTodoUpdates(todo: Todo, updates: Partial<Todo>, now = new D
     if (markdownTasks.length > 0 || hadMarkdownTasks) {
       next.subtasks = syncSubtasksFromMarkdown(updates.contentMarkdown, todo.subtasks, now);
     }
+  }
+
+  if (updates.dueAt !== undefined && updates.reminders === undefined) {
+    next.reminders = updates.dueAt ? [createDefaultReminder(updates.dueAt, advanceMinutes)] : [];
   }
 
   return next;

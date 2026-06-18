@@ -6,6 +6,7 @@ import { TodoCard } from "../TodoCard";
 import { FolderOpen, ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
+import { sortTodosByDueTime } from "../../lib/todoSort";
 
 export interface ProjectsViewProps {
   selectedId: string | null;
@@ -170,13 +171,12 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
                     暂无待办
                   </p>
                 ) : (
-                  group.todos.map((todo, i) => (
+                  sortTodosByDueTime(group.todos).map((todo) => (
                     <TodoCard
                       key={todo.id}
                       todo={todo}
                       isSelected={selectedId === todo.id}
                       onClick={() => onSelect(todo.id)}
-                      style={{ animationDelay: `${i * 40}ms` }}
                     />
                   ))
                 )}

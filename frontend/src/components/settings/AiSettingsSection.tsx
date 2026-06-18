@@ -15,6 +15,8 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { PRESET_MODELS } from "./settingsOptions";
+import { SettingsCard } from "./SettingsCard";
+import { SettingsToggleRow } from "./SettingsToggleRow";
 
 export function AiSettingsSection() {
   const { settings, updateAiModel } = useSettings();
@@ -58,47 +60,30 @@ export function AiSettingsSection() {
 
   return (
     <>
-      <section className="glass-card rounded-lg p-5">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg brand-gradient">
-              <Sparkles className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-foreground">AI 助手</h2>
-              <p className="text-[10px] text-muted-foreground">用于一键整理、润色和补全待办内容</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => updateAiModel({ enabled: !settings.aiModel.enabled })}
-            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted/80"
-            aria-label="切换 AI 助手"
-          >
-            <span>{settings.aiModel.enabled ? "已启用" : "未启用"}</span>
-            <span
-              className={cn(
-                "relative h-[22px] w-10 rounded-full transition-colors",
-                settings.aiModel.enabled ? "bg-primary" : "bg-muted-foreground/20"
-              )}
-            >
-              <span
-                className={cn(
-                  "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
-                  settings.aiModel.enabled ? "translate-x-5" : "translate-x-0.5"
-                )}
-              />
-            </span>
-          </button>
-        </div>
+      <SettingsCard
+        title="AI 助手"
+        description="用于一键整理、润色和补全待办内容"
+        icon={Sparkles}
+        iconClassName="brand-gradient text-white"
+      >
+        <SettingsToggleRow
+          checked={settings.aiModel.enabled}
+          onCheckedChange={(checked) => updateAiModel({ enabled: checked })}
+          title={settings.aiModel.enabled ? "AI 助手已启用" : "AI 助手已关闭"}
+          description={
+            settings.aiModel.enabled
+              ? "输入框里的 AI 整理和正文润色会使用下面的模型配置。"
+              : "关闭后，输入框里的 AI 整理和正文润色会暂停使用。"
+          }
+          ariaLabel="切换 AI 助手"
+        />
 
         {!settings.aiModel.enabled ? (
-          <div className="rounded-lg bg-muted/50 px-4 py-3 text-xs leading-6 text-muted-foreground">
-            开启后可以配置模型、Base URL、API Key 和助手提示词。关闭时，输入框里的 AI 整理和 AI 润色会暂停使用。
+          <div className="mt-3 rounded-lg bg-muted/35 px-4 py-3 text-xs leading-6 text-muted-foreground">
+            开启后可以配置模型、Base URL、API Key 和助手提示词。
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="mt-4 space-y-4">
             <div className="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
               <div>
                 <label className="settings-label mb-1.5">模型</label>
@@ -186,7 +171,7 @@ export function AiSettingsSection() {
             </div>
           </div>
         )}
-      </section>
+      </SettingsCard>
 
       <Dialog open={promptOpen} onOpenChange={setPromptOpen}>
         <DialogContent className="sm:max-w-2xl">

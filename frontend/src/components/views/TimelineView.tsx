@@ -1,10 +1,10 @@
 // SmartTodo - Timeline View
 import { useTodo } from "../../contexts/TodoContext";
-import { TodoCard } from "../TodoCard";
 import { Clock } from "lucide-react";
 import { Todo } from "../../lib/types";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { TodoTimelineList } from "../TodoTimelineList";
 
 interface TimelineViewProps {
   selectedId: string | null;
@@ -21,8 +21,6 @@ const RELATIVE_LABELS: Record<number, string> = {
   1: "明天",
   2: "后天",
 };
-
-const pOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
 function getLocalDateKey(date: Date) {
   return format(date, "yyyy-MM-dd");
@@ -69,15 +67,6 @@ export function TimelineView({ selectedId, onSelect }: TimelineViewProps) {
     return a.localeCompare(b);
   });
 
-  for (const [, list] of sortedGroups) {
-    list.sort((a: Todo, b: Todo) => {
-      if (a.dueAt && b.dueAt) return a.dueAt.localeCompare(b.dueAt);
-      if (a.dueAt) return -1;
-      if (b.dueAt) return 1;
-      return (pOrder[a.priority] ?? 2) - (pOrder[b.priority] ?? 2);
-    });
-  }
-
   if (sortedGroups.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -106,17 +95,7 @@ export function TimelineView({ selectedId, onSelect }: TimelineViewProps) {
               </h3>
               <span className="text-[10px] text-muted-foreground">{list.length}</span>
             </div>
-            <div className="space-y-2">
-              {list.map((todo, i) => (
-                <TodoCard
-                  key={todo.id}
-                  todo={todo}
-                  isSelected={selectedId === todo.id}
-                  onClick={() => onSelect(todo.id)}
-                  style={{ animationDelay: `${i * 40}ms` }}
-                />
-              ))}
-            </div>
+            <TodoTimelineList todos={list} selectedId={selectedId} onSelect={onSelect} />
           </div>
         );
       })}

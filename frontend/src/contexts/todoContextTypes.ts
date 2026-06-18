@@ -22,6 +22,14 @@ export interface TodoContextValue {
   updateTodo: (id: string, updates: Partial<Todo>) => void;
   deleteTodo: (id: string) => void;
   restoreTodo: (todo: Todo, index?: number) => void;
+  markReminderSent: (todoId: string, reminderId: string, sentAt?: string) => void;
+  replaceWorkspaceData: (data: {
+    todos?: Todo[];
+    projects?: Project[];
+    tags?: Tag[];
+    undoRecord?: UndoRecord | null;
+  }) => void;
+  clearWorkspaceData: () => void;
   duplicateTodo: (id: string) => Todo | null;
   completeTodo: (id: string) => void;
   uncompleteTodo: (id: string) => void;

@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { AiSettingsSection } from "../components/settings/AiSettingsSection";
+import { FeedbackSettingsSection } from "../components/settings/FeedbackSettingsSection";
 import { ReminderSettingsSection } from "../components/settings/ReminderSettingsSection";
 import { SettingsSidePanel } from "../components/settings/SettingsSidePanel";
 
@@ -21,15 +22,16 @@ export default function SettingsPage({ onBack, onLogout }: SettingsPageProps) {
         </button>
         <div>
           <h1 className="font-display text-sm font-bold text-foreground">设置</h1>
-          <p className="hidden text-[10px] text-muted-foreground sm:block">账户、AI 助手与提醒</p>
+          <p className="hidden text-[10px] text-muted-foreground sm:block">AI 助手、提醒、反馈和账户数据</p>
         </div>
       </header>
 
       <div className="mx-auto w-full max-w-[1428px] px-4 py-6 md:px-8 md:py-8">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px] xl:gap-6">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start xl:grid-cols-[minmax(0,1fr)_440px] xl:gap-6">
           <div className="min-w-0 space-y-5">
             <AiSettingsSection />
             <ReminderSettingsSection />
+            <FeedbackSettingsSection />
           </div>
           <SettingsSidePanel onLogout={onLogout} />
         </div>

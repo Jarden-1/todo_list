@@ -67,7 +67,7 @@ export function CompletedView({ selectedId, onSelect }: CompletedViewProps) {
               <span className="text-[10px] text-muted-foreground/50">{list.length} 项</span>
             </div>
             <div className="space-y-2">
-              {list.map((todo, i) => {
+              {list.map((todo) => {
                 const project = getProjectById(todo.projectId);
                 const isSelected = selectedId === todo.id;
 
@@ -76,11 +76,10 @@ export function CompletedView({ selectedId, onSelect }: CompletedViewProps) {
                     key={todo.id}
                     onClick={() => onSelect(todo.id)}
                     className={cn(
-                      "glass-card rounded-xl px-4 py-3 cursor-pointer card-enter",
+                      "glass-card rounded-xl px-4 py-3 cursor-pointer",
                       "flex items-center gap-3 group",
                       isSelected && "ring-1 ring-primary/40"
                     )}
-                    style={{ animationDelay: `${i * 30}ms` }}
                   >
                     <button
                       type="button"

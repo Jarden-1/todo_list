@@ -347,6 +347,105 @@
     }
   }
 
+  .todo-timeline-list {
+    display: grid;
+    gap: 0.95rem;
+  }
+
+  .todo-timeline-row {
+    display: grid;
+    grid-template-columns: 0.9rem minmax(0, 1fr);
+    align-items: stretch;
+    column-gap: 0.85rem;
+    min-height: 3.25rem;
+  }
+
+  .todo-timeline-list[data-label-mode="relative"] .todo-timeline-row {
+    grid-template-columns: 0.9rem minmax(0, 1fr);
+  }
+
+  .todo-timeline-content {
+    min-width: 0;
+    padding-bottom: 0.1rem;
+  }
+
+  .todo-timeline-time {
+    padding: 0.1rem 0 0.45rem;
+    text-align: left;
+    font-size: 0.75rem;
+    line-height: 1;
+    font-weight: 650;
+    color: color-mix(in srgb, var(--muted-foreground) 82%, transparent);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .todo-timeline-cards {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .todo-timeline-rail {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding-top: 0.33rem;
+  }
+
+  .todo-timeline-rail::before {
+    content: "";
+    position: absolute;
+    top: 0.78rem;
+    bottom: 0;
+    width: 1px;
+    background: color-mix(in srgb, var(--border) 34%, transparent);
+  }
+
+  .todo-timeline-dot {
+    position: relative;
+    z-index: 1;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 58%, white);
+    box-shadow:
+      0 0 0 3px var(--background),
+      0 0 0 4px color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .todo-timeline-dot-muted {
+    background: color-mix(in srgb, var(--muted-foreground) 42%, transparent);
+    box-shadow:
+      0 0 0 3px var(--background),
+      0 0 0 4px color-mix(in srgb, var(--muted-foreground) 8%, transparent);
+  }
+
+  .dark .todo-timeline-rail::before {
+    background: oklch(1 0 0 / 7%);
+  }
+
+  .dark .todo-timeline-dot {
+    background: color-mix(in srgb, var(--primary) 62%, white);
+    box-shadow:
+      0 0 0 3px var(--background),
+      0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
+  }
+
+  @media (max-width: 520px) {
+    .todo-timeline-row {
+      grid-template-columns: 0.8rem minmax(0, 1fr);
+      column-gap: 0.65rem;
+    }
+
+    .todo-timeline-list[data-label-mode="relative"] .todo-timeline-row {
+      grid-template-columns: 0.8rem minmax(0, 1fr);
+    }
+
+    .todo-timeline-time {
+      font-size: 0.6875rem;
+    }
+  }
+
   /* Btn active feedback */
   button:active:not(:disabled) {
     transform: scale(0.97);
@@ -454,13 +553,6 @@
     transition:
       opacity 150ms ease,
       transform 260ms ease;
-  }
-
-  /* Card stagger entrance */
-  .card-enter { animation: cardEnter 250ms var(--ease-out) both; }
-  @keyframes cardEnter {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
   }
 
   /* Spinner */
@@ -715,6 +807,127 @@
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--muted-foreground);
+  }
+
+  .settings-card {
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 72%), oklch(1 0 0 / 52%)),
+      var(--card);
+    border: 1px solid oklch(from var(--border) l c h / 42%);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 70%),
+      0 10px 26px oklch(0 0 0 / 3.5%);
+  }
+  .dark .settings-card {
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 4%), transparent 82%),
+      oklch(from var(--card) l c h / 94%);
+    border-color: oklch(1 0 0 / 8%);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 5%),
+      0 14px 30px oklch(0 0 0 / 16%);
+  }
+  .settings-card-icon {
+    display: flex;
+    height: 2.25rem;
+    width: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+  }
+  .settings-toggle-row {
+    display: flex;
+    min-height: 4rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 0.875rem;
+    background: oklch(from var(--muted) l c h / 48%);
+    padding: 0.875rem 1rem;
+    box-shadow: inset 0 0 0 1px oklch(from var(--border) l c h / 26%);
+  }
+  .dark .settings-toggle-row {
+    background: oklch(1 0 0 / 4%);
+    box-shadow: inset 0 0 0 1px oklch(1 0 0 / 6%);
+  }
+  .settings-toggle-row [data-slot="switch"] {
+    --switch-width: 2.75rem;
+    width: var(--switch-width);
+  }
+  .settings-subgrid {
+    display: grid;
+    gap: 1rem;
+  }
+  @media (min-width: 768px) {
+    .settings-subgrid {
+      grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+    }
+  }
+  .settings-side-data-panel {
+    margin-top: 1.5rem;
+    border-top: 1px solid oklch(from var(--border) l c h / 32%);
+    padding-top: 1.25rem;
+  }
+  .dark .settings-side-data-panel {
+    border-top-color: oklch(1 0 0 / 8%);
+  }
+  .settings-side-action-list {
+    display: grid;
+    gap: 0.125rem;
+  }
+  .settings-side-action {
+    display: flex;
+    width: 100%;
+    min-height: 3.125rem;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    border-radius: 0.625rem;
+    background: transparent;
+    padding: 0.55rem 0.625rem;
+    text-align: left;
+    color: var(--foreground);
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .settings-side-action:hover {
+    background: oklch(from var(--muted) l c h / 52%);
+  }
+  .settings-side-action-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+  .settings-side-action-title,
+  .settings-side-action-desc {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .settings-side-action-title {
+    font-size: 0.75rem;
+    font-weight: 650;
+    line-height: 1.1;
+    color: var(--foreground);
+  }
+  .settings-side-action-desc {
+    font-size: 0.625rem;
+    line-height: 1.1;
+    color: var(--muted-foreground);
+  }
+  .settings-side-danger {
+    color: oklch(from var(--destructive) calc(l - 0.04) c h / 92%);
+  }
+  .settings-side-danger:hover {
+    background: color-mix(in srgb, var(--destructive) 7%, transparent);
+  }
+  .dark .settings-side-action:hover {
+    background: oklch(1 0 0 / 5%);
+  }
+  .dark .settings-side-danger {
+    color: oklch(from var(--destructive) calc(l + 0.05) c h / 88%);
   }
 
   /* Input field base style */

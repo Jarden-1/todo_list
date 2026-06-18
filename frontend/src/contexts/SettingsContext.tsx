@@ -1,5 +1,5 @@
 // SmartTodo - Settings Context
-// Stores: AI assistant config and ringtone/reminder settings
+// Stores: AI assistant config, due reminders, and lightweight feedback settings
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 export const DEFAULT_ASSISTANT_PROMPT = `你是 SmartTodo 的 AI 待办助手。
@@ -24,24 +24,40 @@ export interface RingtoneConfig {
   advanceMinutes: number; // remind N minutes before due
 }
 
-export interface AppSettings {
-  aiModel: AiModelConfig;
-  ringtone: RingtoneConfig;
+export interface FeedbackConfig {
+  completeSound: boolean;
+  completeAnimation: boolean;
+  operationSound: boolean;
 }
 
+export interface AppSettings {
+  schemaVersion: number;
+  aiModel: AiModelConfig;
+  ringtone: RingtoneConfig;
+  feedback: FeedbackConfig;
+}
+
+const SETTINGS_SCHEMA_VERSION = 2;
+
 const DEFAULT_SETTINGS: AppSettings = {
+  schemaVersion: SETTINGS_SCHEMA_VERSION,
   aiModel: {
-    enabled: false,
+    enabled: true,
     model: "gpt-4o-mini",
     apiKey: "",
     baseUrl: "https://api.openai.com/v1",
     assistantPrompt: DEFAULT_ASSISTANT_PROMPT,
   },
   ringtone: {
-    enabled: false,
+    enabled: true,
     sound: "chime",
     volume: 70,
     advanceMinutes: 15,
+  },
+  feedback: {
+    completeSound: true,
+    completeAnimation: true,
+    operationSound: false,
   },
 };
 
@@ -52,15 +68,27 @@ function loadSettings(): AppSettings {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    const isLegacySettings = parsed.schemaVersion !== SETTINGS_SCHEMA_VERSION;
 
     return {
+      schemaVersion: SETTINGS_SCHEMA_VERSION,
       aiModel: {
         ...DEFAULT_SETTINGS.aiModel,
         ...(parsed.aiModel ?? {}),
+        enabled: isLegacySettings
+          ? DEFAULT_SETTINGS.aiModel.enabled
+          : parsed.aiModel?.enabled ?? DEFAULT_SETTINGS.aiModel.enabled,
       },
       ringtone: {
         ...DEFAULT_SETTINGS.ringtone,
         ...(parsed.ringtone ?? {}),
+        enabled: isLegacySettings
+          ? DEFAULT_SETTINGS.ringtone.enabled
+          : parsed.ringtone?.enabled ?? DEFAULT_SETTINGS.ringtone.enabled,
+      },
+      feedback: {
+        ...DEFAULT_SETTINGS.feedback,
+        ...(parsed.feedback ?? {}),
       },
     };
   } catch {
@@ -72,6 +100,8 @@ interface SettingsContextValue {
   settings: AppSettings;
   updateAiModel: (updates: Partial<AiModelConfig>) => void;
   updateRingtone: (updates: Partial<RingtoneConfig>) => void;
+  updateFeedback: (updates: Partial<FeedbackConfig>) => void;
+  replaceSettings: (settings: Partial<AppSettings>) => void;
   resetSettings: () => void;
 }
 
@@ -98,10 +128,35 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const updateFeedback = (updates: Partial<FeedbackConfig>) => {
+    setSettings((prev) => ({
+      ...prev,
+      feedback: { ...prev.feedback, ...updates },
+    }));
+  };
+
+  const replaceSettings = (incoming: Partial<AppSettings>) => {
+    setSettings({
+      schemaVersion: SETTINGS_SCHEMA_VERSION,
+      aiModel: {
+        ...DEFAULT_SETTINGS.aiModel,
+        ...(incoming.aiModel ?? {}),
+      },
+      ringtone: {
+        ...DEFAULT_SETTINGS.ringtone,
+        ...(incoming.ringtone ?? {}),
+      },
+      feedback: {
+        ...DEFAULT_SETTINGS.feedback,
+        ...(incoming.feedback ?? {}),
+      },
+    });
+  };
+
   const resetSettings = () => setSettings(DEFAULT_SETTINGS);
 
   return (
-    <SettingsContext.Provider value={{ settings, updateAiModel, updateRingtone, resetSettings }}>
+    <SettingsContext.Provider value={{ settings, updateAiModel, updateRingtone, updateFeedback, replaceSettings, resetSettings }}>
       {children}
     </SettingsContext.Provider>
   );

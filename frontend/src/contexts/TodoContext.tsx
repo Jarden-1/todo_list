@@ -34,6 +34,7 @@ import {
   createTag,
   createTodo,
   createUndoRecord,
+  normalizeTodoReminders,
   type TodoCreateInput,
 } from "../lib/todoFactory";
 import {
@@ -42,10 +43,12 @@ import {
   toggleTodoSubtask,
 } from "../lib/todoSubtaskUpdates";
 import type { TodoContextValue } from "./todoContextTypes";
+import { useSettings } from "./SettingsContext";
 
 const TodoContext = createContext<TodoContextValue | null>(null);
 
 export function TodoProvider({ children }: { children: React.ReactNode }) {
+  const { settings } = useSettings();
   const [todos, setTodos] = useState<Todo[]>(() => getTodos());
   const [projects, setProjects] = useState<Project[]>(() => getProjects());
   const [tags, setTags] = useState<Tag[]>(() => getTags());
@@ -58,19 +61,48 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { saveProjects(projects); }, [projects]);
   useEffect(() => { saveTags(tags); }, [tags]);
   useEffect(() => { saveUndoRecord(undoRecord); }, [undoRecord]);
+  useEffect(() => {
+    setTodos((prev) => {
+      let changed = false;
+      const next = prev.map((todo) => {
+        const normalized = normalizeTodoReminders(todo, settings.ringtone.advanceMinutes);
+        if (normalized !== todo) changed = true;
+        return normalized;
+      });
+      return changed ? next : prev;
+    });
+  }, [settings.ringtone.advanceMinutes]);
 
   const addTodo = useCallback((partial: TodoCreateInput): Todo => {
-    const todo = createTodo(partial);
+    const todo = createTodo(partial, new Date().toISOString(), {
+      advanceMinutes: settings.ringtone.advanceMinutes,
+    });
     setTodos((prev) => [todo, ...prev]);
     return todo;
-  }, []);
+  }, [settings.ringtone.advanceMinutes]);
 
   const updateTodo = useCallback((id: string, updates: Partial<Todo>) => {
     setTodos((prev) =>
       prev.map((t) => {
         if (t.id !== id) return t;
 
-        return applyTodoUpdates(t, updates);
+        return applyTodoUpdates(t, updates, new Date().toISOString(), {
+          advanceMinutes: settings.ringtone.advanceMinutes,
+        });
+      })
+    );
+  }, [settings.ringtone.advanceMinutes]);
+
+  const markReminderSent = useCallback((todoId: string, reminderId: string, sentAt = new Date().toISOString()) => {
+    setTodos((prev) =>
+      prev.map((todo) => {
+        if (todo.id !== todoId) return todo;
+
+        const reminders = todo.reminders.map((reminder) =>
+          reminder.id === reminderId ? { ...reminder, sentAt } : reminder
+        );
+
+        return { ...todo, reminders, updatedAt: sentAt };
       })
     );
   }, []);
@@ -95,6 +127,27 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       next.splice(insertIndex, 0, todo);
       return next;
     });
+  }, []);
+
+  const replaceWorkspaceData = useCallback((data: {
+    todos?: Todo[];
+    projects?: Project[];
+    tags?: Tag[];
+    undoRecord?: UndoRecord | null;
+  }) => {
+    if (data.todos) setTodos(data.todos);
+    if (data.projects) setProjects(data.projects);
+    if (data.tags) setTags(data.tags);
+    if ("undoRecord" in data) setUndoRecord(data.undoRecord ?? null);
+    setSelectedTodoId(null);
+  }, []);
+
+  const clearWorkspaceData = useCallback(() => {
+    setTodos([]);
+    setProjects([]);
+    setTags([]);
+    setUndoRecord(null);
+    setSelectedTodoId(null);
   }, []);
 
   const duplicateTodo = useCallback((id: string): Todo | null => {
@@ -172,6 +225,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      const reminders = createRemindersFromAi(result.reminders);
       const todo = addTodo({
         title: result.title,
         status: "todo",
@@ -179,7 +233,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
         projectId,
         tagIds: [],
         dueAt: result.dueAt,
-        reminders: createRemindersFromAi(result.reminders),
+        reminders: reminders.length > 0 ? reminders : undefined,
         contentMarkdown: result.contentMarkdown ?? "",
         originalInput,
         subtasks: createSubtasksFromAi(result.subtasks, now),
@@ -236,6 +290,9 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
         updateTodo,
         deleteTodo,
         restoreTodo,
+        markReminderSent,
+        replaceWorkspaceData,
+        clearWorkspaceData,
         duplicateTodo,
         completeTodo,
         uncompleteTodo,

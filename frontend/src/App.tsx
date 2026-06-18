@@ -9,8 +9,14 @@ import Home from "./pages/Home";
 import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useAutoHideScrollbars } from "./hooks/useTransientScrollbar";
+import { useTodoReminderScheduler } from "./hooks/useTodoReminderScheduler";
 
 type AppPage = "home" | "login" | "settings";
+
+function AppServices() {
+  useTodoReminderScheduler();
+  return null;
+}
 
 function App() {
   const [page, setPage] = useState<AppPage>("home");
@@ -22,6 +28,7 @@ function App() {
         <SettingsProvider>
           <TodoProvider>
             <TooltipProvider>
+              <AppServices />
               <Toaster position="bottom-right" />
               {page === "login" ? (
                 <LoginPage onLogin={() => setPage("home")} />
