@@ -128,6 +128,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const updateRingtone = useCallback(async (updates: Partial<RingtoneConfig>) => {
     const { serverPatch, localPatch } = splitRingtonePatch(updates);
+    const previousSettings = settings;
 
     if (hasKeys(localPatch)) {
       setSettings((prev) => ({
@@ -141,13 +142,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const remote = await patchSettings({ ringtone: serverPatch });
-    setSettings((prev) => mergeSettings(remote, {
-      ...getLocalRingtoneState(prev),
-      ...localPatch,
-    }));
-    setError(null);
-  }, []);
+    try {
+      const remote = await patchSettings({ ringtone: serverPatch });
+      setSettings((prev) => mergeSettings(remote, {
+        ...getLocalRingtoneState(prev),
+        ...localPatch,
+      }));
+      setError(null);
+    } catch (caught) {
+      if (hasKeys(localPatch)) {
+        setSettings(previousSettings);
+      }
+      const message = getApiErrorMessage(caught);
+      setError(message);
+      throw caught;
+    }
+  }, [settings]);
 
   const updateFeedback = useCallback(async (updates: Partial<FeedbackConfig>) => {
     const remote = await patchSettings({ feedback: updates });

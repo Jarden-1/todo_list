@@ -69,7 +69,7 @@ export function TodoMetadataSection({
           <label className="detail-label">项目</label>
           <select
             value={todo.projectId ?? ""}
-            onChange={(event) => onUpdate({ projectId: event.target.value || undefined })}
+            onChange={(event) => onUpdate({ projectId: event.target.value || null })}
             className="field-input mt-1"
           >
             <option value="">未分配</option>
@@ -147,7 +147,7 @@ export function TodoMetadataSection({
             value={toDatetimeLocalValue(todo.dueAt)}
             onChange={(event) =>
               onUpdate({
-                dueAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
+                dueAt: event.target.value ? new Date(event.target.value).toISOString() : null,
               })
             }
             className={cn("field-input cursor-pointer", overdue && "border-destructive/50 text-destructive")}

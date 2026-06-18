@@ -1,61 +1,67 @@
-# SmartTodo Backend Notes
+# SmartTodo Backend
 
-这个目录先作为后端对齐区使用，当前只放设计文档和接口契约，不写运行时代码。
+SmartTodo 后端已经从设计文档阶段进入运行实现阶段。当前服务使用 Fastify、Prisma、PostgreSQL、Redis 和 HttpOnly Cookie Session，为 `frontend/` 提供 `/api/v1` 接口。
 
-## 当前结论
+## 本地运行
 
-- 当前有效前端目录是 `frontend/`，`smart-todo/` 视为废弃目录，不参与后端设计。
-- 前端现在把 `todos / projects / tags / undoRecord / settings / theme` 存在浏览器 `localStorage`。
-- 登录页目前只是本地演示登录，后端第一阶段需要补真实用户系统。注册开放，登录名只要求不重复，暂不做邮箱验证码、邮箱验证或第三方 OAuth。
-- AI 整理和 AI 润色现在由前端直连模型接口。接后端后应改成后端代理，用户在设置里自定义 API Key，后端不提供默认 Key。
-- 当前前端本地数据只作为演示数据，不按真实用户数据自动迁移。设置页已有导入入口，后端继续支持手动导入。
+1. 安装依赖：
 
-## 推荐后端方向
+```bash
+npm install
+```
 
-第一版建议用：
+2. 创建环境配置：
 
-- Runtime: Node.js + TypeScript
-- API: Fastify 或 Express，建议 Fastify，接口 schema 更清晰
-- Validation: Zod
-- ORM: Prisma
-- Database: PostgreSQL。部署到腾讯云服务器时建议用 Docker Compose 管理 API + Postgres + Redis。
-- Auth: 唯一登录名 + 密码登录，HttpOnly Cookie Session
-- Password hash: Argon2id，若部署环境不方便则 bcrypt
-- Queue/Cache: Redis，用于会话、提醒扫描锁和后续后台任务
-- Push: Web Push，用于浏览器关闭后仍能收到系统通知
+```bash
+cp .env.example .env
+```
 
-这里的核心不是先堆功能，而是把前端已有的本地状态迁移成稳定的服务端契约。
+3. 按需修改 `.env` 中的 `DATABASE_URL`、`REDIS_URL`、`SESSION_SECRET` 和 `AI_KEY_ENCRYPTION_SECRET`。
 
-## 文档
+4. 生成 Prisma Client：
 
-- [架构边界](./docs/architecture.md)
-- [接口规范](./docs/api.md)
-- [数据模型](./docs/data-model.md)
-- [前端接入计划](./docs/frontend-integration.md)
+```bash
+npm run prisma:generate
+```
 
-## 第一阶段范围
+5. 启动开发服务：
 
-必须做：
+```bash
+npm run dev
+```
 
-- 用户注册/登录/退出/当前用户
-- 用户维度的数据隔离
-- 工作区首屏数据加载
-- Todo / Project / Tag / Settings 的 CRUD
-- Markdown 图片和附件的真实文件上传、私有读取和软删除
-- 用户自定义 AI Key 的加密保存、更新和清除
-- AI 整理创建待办，使用当前用户自己的 AI Key
-- AI 润色 Markdown，使用当前用户自己的 AI Key
-- 导入、导出、清空当前用户数据
-- 服务端提醒调度、通知事件生成、Web Push 推送和发送状态同步
-- 软删数据到期后的物理清理任务
+默认监听 `http://localhost:3000`，健康检查为 `GET /api/v1/health`。
 
-暂缓：
+## 常用命令
 
-- 邮箱验证码
-- 邮箱验证
-- OAuth 登录
-- 团队协作和共享项目
-- 多设备实时同步
-- 短信、邮件等外部提醒渠道。Web Push 第一版必须做。
-- 完整操作历史
-- 对象存储、CDN 和图片转码。第一版不接 COS，上传文件固定保存在腾讯云服务器本机磁盘。
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+## 已接入能力
+
+- 注册、登录、退出和当前用户查询
+- 用户维度数据隔离
+- Todo、Project、Tag、Settings 的主要 CRUD
+- 工作区 bootstrap、导入、导出和清空
+- Markdown 图片与附件上传、私有读取、软删除和清理任务
+- 用户自定义 AI Key 加密保存，AI 整理待办和 Markdown 润色
+- 服务端提醒扫描、通知事件和 Web Push 订阅
+
+## 前端衔接
+
+当前有效前端目录是项目根目录下的 `frontend/`。前端通过 `frontend/src/lib/apiClient.ts` 统一访问后端，默认开发代理来自 `frontend/vite.config.ts`：
+
+```text
+/api -> http://localhost:3000
+```
+
+跨域部署时需要显式设置前端的 `VITE_API_BASE_URL`，并确认 Cookie、HTTPS、SameSite 和 Web Push 域名配置。
+
+## 当前工程风险
+
+- `todos.service.ts` 和 `workspace.service.ts` 仍偏长，后续可以按领域动作拆分，但当前已有集成测试覆盖主流程。
+- Web Push 生产环境依赖 HTTPS、有效 VAPID key 和浏览器权限。
+- 部分 API 文档仍是规划/契约说明，真实行为应以运行代码和集成测试为准。

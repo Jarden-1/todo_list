@@ -14,7 +14,7 @@ import {
 } from "date-fns";
 import { zhCN } from "date-fns/locale";
 
-export function formatDueDate(dateStr: string | undefined): string {
+export function formatDueDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "";
   const date = parseISO(dateStr);
   if (isToday(date)) return `今天 ${format(date, "HH:mm")}`;
@@ -31,12 +31,12 @@ export function formatRelativeDate(dateStr: string): string {
   return format(date, "M月d日", { locale: zhCN });
 }
 
-export function isOverdue(dateStr: string | undefined): boolean {
+export function isOverdue(dateStr: string | null | undefined): boolean {
   if (!dateStr) return false;
   return isPast(parseISO(dateStr));
 }
 
-export function isTodayDate(dateStr: string | undefined): boolean {
+export function isTodayDate(dateStr: string | null | undefined): boolean {
   if (!dateStr) return false;
   return isToday(parseISO(dateStr));
 }
@@ -50,7 +50,7 @@ export type TimelineGroup =
   | "future"
   | "no_due";
 
-export function getTimelineGroup(dueAt: string | undefined): TimelineGroup {
+export function getTimelineGroup(dueAt: string | null | undefined): TimelineGroup {
   if (!dueAt) return "no_due";
   const date = parseISO(dueAt);
   if (isPast(date) && !isToday(date)) return "overdue";

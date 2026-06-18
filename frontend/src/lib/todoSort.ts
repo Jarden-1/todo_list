@@ -7,7 +7,7 @@ const PRIORITY_WEIGHT: Record<TodoPriority, number> = {
   low: 3,
 };
 
-function getTime(value?: string) {
+function getTime(value?: string | null) {
   if (!value) return null;
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : null;

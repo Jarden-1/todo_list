@@ -15,7 +15,7 @@ export function cloneTodo(todo: Todo): Todo {
           confidence: todo.aiMeta.confidence ? { ...todo.aiMeta.confidence } : undefined,
           warnings: todo.aiMeta.warnings ? [...todo.aiMeta.warnings] : undefined,
         }
-      : undefined,
+      : null,
   };
 }
 
@@ -31,14 +31,14 @@ export function createDuplicateTodo(source: Todo, now = new Date().toISOString()
     reminders: duplicated.reminders.map((reminder) => ({
       ...reminder,
       id: nanoid(),
-      sentAt: undefined,
-      dismissedAt: undefined,
+      sentAt: null,
+      dismissedAt: null,
     })),
     subtasks: duplicated.subtasks.map((subtask) => ({
       ...subtask,
       id: nanoid(),
       done: false,
-      completedAt: undefined,
+      completedAt: null,
       createdAt: now,
     })),
     attachments: duplicated.attachments.map((attachment) => ({
@@ -48,7 +48,7 @@ export function createDuplicateTodo(source: Todo, now = new Date().toISOString()
     })),
     createdAt: now,
     updatedAt: now,
-    completedAt: undefined,
-    cancelledAt: undefined,
+    completedAt: null,
+    cancelledAt: null,
   };
 }

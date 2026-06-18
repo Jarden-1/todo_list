@@ -77,16 +77,16 @@ export interface Todo {
   title: string;
   status: TodoStatus;
   priority: TodoPriority;
-  projectId?: string;
+  projectId: string | null;
   tagIds: string[];
-  dueAt?: string;
+  dueAt: string | null;
   reminders: Reminder[];
   contentMarkdown: string;
-  originalInput?: string;
+  originalInput: string | null;
   subtasks: Subtask[];
   attachments: Attachment[];
-  aiMeta?: TodoAiMeta;
-  assignee?: string;          // 对接人（自由文本）
+  aiMeta: TodoAiMeta | null;
+  assignee: string | null;          // 对接人（自由文本）
   createdAt: string;
   updatedAt: string;
   completedAt?: string | null;
