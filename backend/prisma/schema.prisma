@@ -1,0 +1,291 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String                @id @db.Text
+  loginName            String                @unique @map("login_name") @db.Text
+  loginNameNormalized  String                @unique @map("login_name_normalized") @db.Text
+  displayName          String?               @map("display_name") @db.Text
+  passwordHash         String                @map("password_hash") @db.Text
+  timezone             String                @default("Asia/Shanghai") @db.Text
+  createdAt            DateTime              @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime              @map("updated_at") @db.Timestamptz(3)
+  lastLoginAt          DateTime?             @map("last_login_at") @db.Timestamptz(3)
+  disabledAt           DateTime?             @map("disabled_at") @db.Timestamptz(3)
+  sessions             Session[]
+  settings             UserSetting?
+  projects             Project[]
+  tags                 Tag[]
+  todos                Todo[]
+  subtasks             Subtask[]
+  reminders            Reminder[]
+  attachments          Attachment[]
+  todoTags             TodoTag[]
+  notificationEvents   NotificationEvent[]
+  webPushSubscriptions WebPushSubscription[]
+  undoRecords          UndoRecord[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String    @id @db.Text
+  userId    String    @map("user_id") @db.Text
+  tokenHash String    @unique @map("token_hash") @db.Text
+  userAgent String?   @map("user_agent") @db.Text
+  ipAddress String?   @map("ip_address") @db.Text
+  createdAt DateTime  @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model UserSetting {
+  userId                    String   @id @map("user_id") @db.Text
+  schemaVersion             Int      @default(2) @map("schema_version")
+  aiEnabled                 Boolean  @default(true) @map("ai_enabled")
+  aiModel                   String   @default("gpt-4o-mini") @map("ai_model") @db.Text
+  aiBaseUrl                 String   @default("https://api.openai.com/v1") @map("ai_base_url") @db.Text
+  aiAssistantPrompt         String   @map("ai_assistant_prompt") @db.Text
+  aiApiKeyCiphertext        String?  @map("ai_api_key_ciphertext") @db.Text
+  aiApiKeyIv                String?  @map("ai_api_key_iv") @db.Text
+  aiApiKeyAuthTag           String?  @map("ai_api_key_auth_tag") @db.Text
+  ringtoneEnabled           Boolean  @default(true) @map("ringtone_enabled")
+  ringtoneSound             String   @default("chime") @map("ringtone_sound") @db.Text
+  ringtoneVolume            Int      @default(70) @map("ringtone_volume")
+  ringtoneAdvanceMinutes    Int      @default(15) @map("ringtone_advance_minutes")
+  feedbackCompleteSound     Boolean  @default(true) @map("feedback_complete_sound")
+  feedbackCompleteAnimation Boolean  @default(true) @map("feedback_complete_animation")
+  feedbackOperationSound    Boolean  @default(false) @map("feedback_operation_sound")
+  theme                     String?  @db.Text
+  createdAt                 DateTime @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime @map("updated_at") @db.Timestamptz(3)
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model Project {
+  id         String    @id @db.Text
+  userId     String    @map("user_id") @db.Text
+  name       String    @db.Text
+  color      String?   @db.Text
+  createdAt  DateTime  @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @map("updated_at") @db.Timestamptz(3)
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(3)
+  purgeAfter DateTime? @map("purge_after") @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todos      Todo[]
+
+  @@index([userId, createdAt])
+  @@index([userId, deletedAt, purgeAfter])
+  @@map("projects")
+}
+
+model Tag {
+  id         String    @id @db.Text
+  userId     String    @map("user_id") @db.Text
+  name       String    @db.Text
+  color      String?   @db.Text
+  createdAt  DateTime  @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @map("updated_at") @db.Timestamptz(3)
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(3)
+  purgeAfter DateTime? @map("purge_after") @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todoTags   TodoTag[]
+
+  @@index([userId, createdAt])
+  @@index([userId, deletedAt, purgeAfter])
+  @@map("tags")
+}
+
+model Todo {
+  id                 String              @id @db.Text
+  userId             String              @map("user_id") @db.Text
+  title              String              @db.Text
+  status             String              @db.Text
+  priority           String              @db.Text
+  projectId          String?             @map("project_id") @db.Text
+  dueAt              DateTime?           @map("due_at") @db.Timestamptz(3)
+  contentMarkdown    String              @default("") @map("content_markdown") @db.Text
+  originalInput      String?             @map("original_input") @db.Text
+  aiMeta             Json?               @map("ai_meta") @db.JsonB
+  assignee           String?             @db.Text
+  createdAt          DateTime            @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @map("updated_at") @db.Timestamptz(3)
+  completedAt        DateTime?           @map("completed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?           @map("cancelled_at") @db.Timestamptz(3)
+  deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz(3)
+  purgeAfter         DateTime?           @map("purge_after") @db.Timestamptz(3)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project            Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  subtasks           Subtask[]
+  reminders          Reminder[]
+  attachments        Attachment[]
+  todoTags           TodoTag[]
+  notificationEvents NotificationEvent[]
+  undoRecords        UndoRecord[]
+
+  @@index([userId, deletedAt, updatedAt])
+  @@index([userId, status, dueAt])
+  @@index([userId, projectId])
+  @@index([userId, priority])
+  @@index([userId, deletedAt, purgeAfter])
+  @@map("todos")
+}
+
+model Subtask {
+  id          String    @id @db.Text
+  userId      String    @map("user_id") @db.Text
+  todoId      String    @map("todo_id") @db.Text
+  title       String    @db.Text
+  done        Boolean   @default(false)
+  position    Int       @default(0)
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  purgeAfter  DateTime? @map("purge_after") @db.Timestamptz(3)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todo        Todo      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+
+  @@index([userId, todoId, position])
+  @@index([userId, deletedAt, purgeAfter])
+  @@map("subtasks")
+}
+
+model Reminder {
+  id                 String              @id @db.Text
+  userId             String              @map("user_id") @db.Text
+  todoId             String              @map("todo_id") @db.Text
+  remindAt           DateTime            @map("remind_at") @db.Timestamptz(3)
+  reason             String?             @db.Text
+  kind               String              @default("due") @db.Text
+  createdAt          DateTime            @map("created_at") @db.Timestamptz(3)
+  sentAt             DateTime?           @map("sent_at") @db.Timestamptz(3)
+  dismissedAt        DateTime?           @map("dismissed_at") @db.Timestamptz(3)
+  deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz(3)
+  purgeAfter         DateTime?           @map("purge_after") @db.Timestamptz(3)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todo               Todo                @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  notificationEvents NotificationEvent[]
+
+  @@index([userId, remindAt])
+  @@index([userId, todoId])
+  @@index([userId, deletedAt, purgeAfter])
+  @@map("reminders")
+}
+
+model Attachment {
+  id              String    @id @db.Text
+  userId          String    @map("user_id") @db.Text
+  todoId          String?   @map("todo_id") @db.Text
+  type            String    @db.Text
+  originalName    String    @map("original_name") @db.Text
+  mimeType        String?   @map("mime_type") @db.Text
+  sizeBytes       BigInt    @map("size_bytes")
+  checksumSha256  String?   @map("checksum_sha256") @db.Text
+  storageProvider String    @default("local") @map("storage_provider") @db.Text
+  storageKey      String    @map("storage_key") @db.Text
+  contentUrl      String    @map("content_url") @db.Text
+  createdAt       DateTime  @map("created_at") @db.Timestamptz(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
+  purgeAfter      DateTime? @map("purge_after") @db.Timestamptz(3)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todo            Todo?     @relation(fields: [todoId], references: [id], onDelete: SetNull)
+
+  @@index([userId, todoId, createdAt])
+  @@index([userId, deletedAt, purgeAfter])
+  @@map("attachments")
+}
+
+model TodoTag {
+  userId    String   @map("user_id") @db.Text
+  todoId    String   @map("todo_id") @db.Text
+  tagId     String   @map("tag_id") @db.Text
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todo      Todo     @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([todoId, tagId])
+  @@index([userId])
+  @@index([userId, tagId])
+  @@map("todo_tags")
+}
+
+model NotificationEvent {
+  id           String    @id @db.Text
+  userId       String    @map("user_id") @db.Text
+  type         String    @db.Text
+  title        String    @db.Text
+  body         String?   @db.Text
+  todoId       String?   @map("todo_id") @db.Text
+  reminderId   String?   @map("reminder_id") @db.Text
+  payloadJson  Json?     @map("payload_json") @db.JsonB
+  createdAt    DateTime  @map("created_at") @db.Timestamptz(3)
+  readAt       DateTime? @map("read_at") @db.Timestamptz(3)
+  deliveredAt  DateTime? @map("delivered_at") @db.Timestamptz(3)
+  dismissedAt  DateTime? @map("dismissed_at") @db.Timestamptz(3)
+  clickedAt    DateTime? @map("clicked_at") @db.Timestamptz(3)
+  pushSentAt   DateTime? @map("push_sent_at") @db.Timestamptz(3)
+  pushFailedAt DateTime? @map("push_failed_at") @db.Timestamptz(3)
+  pushError    String?   @map("push_error") @db.Text
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
+  purgeAfter   DateTime? @map("purge_after") @db.Timestamptz(3)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todo         Todo?     @relation(fields: [todoId], references: [id], onDelete: SetNull)
+  reminder     Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, type, createdAt])
+  @@index([userId, deletedAt, purgeAfter])
+  @@map("notification_events")
+}
+
+model WebPushSubscription {
+  id            String    @id @db.Text
+  userId        String    @map("user_id") @db.Text
+  endpoint      String    @db.Text
+  p256dh        String    @db.Text
+  auth          String    @db.Text
+  userAgent     String?   @map("user_agent") @db.Text
+  deviceName    String?   @map("device_name") @db.Text
+  enabled       Boolean   @default(true)
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamptz(3)
+  lastFailureAt DateTime? @map("last_failure_at") @db.Timestamptz(3)
+  failureCount  Int       @default(0) @map("failure_count")
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @map("updated_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([userId, enabled])
+  @@map("web_push_subscriptions")
+}
+
+model UndoRecord {
+  id            String    @id @db.Text
+  userId        String    @map("user_id") @db.Text
+  action        String    @db.Text
+  todoId        String?   @map("todo_id") @db.Text
+  originalInput String?   @map("original_input") @db.Text
+  payloadJson   Json?     @map("payload_json") @db.JsonB
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(3)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(3)
+  consumedAt    DateTime? @map("consumed_at") @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todo          Todo?     @relation(fields: [todoId], references: [id], onDelete: SetNull)
+
+  @@index([userId, action, consumedAt, createdAt])
+  @@map("undo_records")
+}
