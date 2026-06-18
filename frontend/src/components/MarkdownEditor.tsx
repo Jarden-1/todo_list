@@ -90,6 +90,12 @@ export function MarkdownEditor({
     autoFocus,
     onKeyDown,
   });
+  const hasFloatingActions =
+    resolvedToolbarMode === "responsive" &&
+    (Boolean(onAiOrganize) || Boolean(showFullscreenToggle && onToggleFullscreen));
+  const floatingActionPadding = hasFloatingActions
+    ? { paddingRight: "5rem", paddingBottom: "3.5rem" }
+    : undefined;
 
   return (
     <div
@@ -98,6 +104,7 @@ export function MarkdownEditor({
         (fullscreen || canResizeY) && "flex min-h-0 flex-col",
         fullscreen && "flex-1",
         canResizeY && "markdown-editor-resizable overflow-hidden",
+        hasFloatingActions && "markdown-editor-has-floating-actions",
         className
       )}
       style={resize.style}
@@ -142,6 +149,7 @@ export function MarkdownEditor({
           onBeforeInput={editor.handleRichBeforeInput}
           onKeyDown={editor.handleRichKeyDown}
           data-empty={value.trim() ? undefined : "true"}
+          style={floatingActionPadding}
           className={cn(
             "markdown-body markdown-rich-editor w-full min-w-0 bg-transparent text-foreground outline-none",
             (fullscreen || canResizeY) && "min-h-0 flex-1 overflow-y-auto",
@@ -158,6 +166,7 @@ export function MarkdownEditor({
           autoFocus={autoFocus}
           placeholder={placeholder}
           rows={rows}
+          style={floatingActionPadding}
           className={cn(
             "w-full min-w-0 bg-transparent text-foreground outline-none placeholder:text-muted-foreground",
             (fullscreen || canResizeY) && "min-h-0 flex-1 overflow-y-auto resize-none",

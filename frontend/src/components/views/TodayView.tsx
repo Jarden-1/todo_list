@@ -1,9 +1,10 @@
 // SmartTodo - Today View
 // Strong visual hierarchy: overdue > today > high-priority
+import { useState } from "react";
 import { useTodo } from "../../contexts/TodoContext";
 import { isOverdue, isTodayDate } from "../../lib/dateUtils";
 import { Sun, AlertCircle, Flame } from "lucide-react";
-import { TodoTimelineList } from "../TodoTimelineList";
+import { TodoTimelineGroup } from "../timeline/TodoTimelineGroup";
 
 interface TodayViewProps {
   selectedId: string | null;
@@ -12,6 +13,18 @@ interface TodayViewProps {
 
 export function TodayView({ selectedId, onSelect }: TodayViewProps) {
   const { todos } = useTodo();
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(["overdue"])
+  );
+
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const activeTodos = todos.filter(
     (t) => t.status !== "done" && t.status !== "cancelled"
@@ -48,65 +61,51 @@ export function TodayView({ selectedId, onSelect }: TodayViewProps) {
     <div className="space-y-7">
       {/* OVERDUE — highest urgency, red accent banner */}
       {overdueTodos.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-destructive/15">
-              <AlertCircle className="w-3.5 h-3.5 text-destructive" />
-            </div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-destructive">
-              已逾期
-            </h3>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive">
-              {overdueTodos.length}
-            </span>
-          </div>
-          <TodoTimelineList
-            todos={overdueTodos}
-            selectedId={selectedId}
-            onSelect={onSelect}
-            labelMode="relative"
-          />
-        </div>
+        <TodoTimelineGroup
+          title="已逾期"
+          todos={overdueTodos}
+          collapsed={collapsedGroups.has("overdue")}
+          onToggle={() => toggleGroup("overdue")}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          labelMode="relative"
+          icon={AlertCircle}
+          iconClassName="bg-destructive/12 text-destructive"
+          titleClassName="text-destructive"
+          countClassName="bg-destructive/12 text-destructive"
+        />
       )}
 
       {/* TODAY — amber accent */}
       {todayTodos.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-amber-500/15">
-              <Sun className="w-3.5 h-3.5 text-amber-500" />
-            </div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400">
-              今天
-            </h3>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
-              {todayTodos.length}
-            </span>
-          </div>
-          <TodoTimelineList todos={todayTodos} selectedId={selectedId} onSelect={onSelect} />
-        </div>
+        <TodoTimelineGroup
+          title="今天"
+          todos={todayTodos}
+          collapsed={collapsedGroups.has("today")}
+          onToggle={() => toggleGroup("today")}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          icon={Sun}
+          iconClassName="bg-amber-500/12 text-amber-500"
+          titleClassName="text-amber-500 dark:text-amber-400"
+          countClassName="bg-amber-500/12 text-amber-600 dark:text-amber-400"
+        />
       )}
 
       {/* HIGH PRIORITY — no date */}
       {noDateHighPriority.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-orange-500/10">
-              <Flame className="w-3.5 h-3.5 text-orange-500" />
-            </div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              高优先级
-            </h3>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-              {noDateHighPriority.length}
-            </span>
-          </div>
-          <TodoTimelineList
-            todos={noDateHighPriority}
-            selectedId={selectedId}
-            onSelect={onSelect}
-          />
-        </div>
+        <TodoTimelineGroup
+          title="高优先级"
+          todos={noDateHighPriority}
+          collapsed={collapsedGroups.has("high-priority")}
+          onToggle={() => toggleGroup("high-priority")}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          icon={Flame}
+          iconClassName="bg-orange-500/10 text-orange-500"
+          titleClassName="text-muted-foreground"
+          countClassName="bg-muted text-muted-foreground"
+        />
       )}
     </div>
   );

@@ -224,8 +224,8 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
             defaultHeight={180}
             minHeight={150}
             maxHeight={420}
-            toolbarClassName="absolute left-4 top-4 z-10 px-0 pt-0"
-            textareaClassName="px-4 pb-6 pt-14 text-sm leading-relaxed"
+            toolbarClassName="px-4 pt-4"
+            textareaClassName="px-4 pb-6 pt-3 text-sm leading-relaxed"
           />
         )}
 
@@ -238,13 +238,6 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
           />
         )}
       </div>
-
-      {/* Hint */}
-      {!expanded && (
-        <p className="mt-1.5 text-[11px] text-muted-foreground px-1">
-          点击输入 · 支持 Markdown · AI 自动整理
-        </p>
-      )}
 
       {fullscreen && (
         <ComposerFullscreenDialog

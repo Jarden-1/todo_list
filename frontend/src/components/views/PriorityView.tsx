@@ -3,8 +3,9 @@ import { useState } from "react";
 import { useTodo } from "../../contexts/TodoContext";
 import { TodoCard } from "../TodoCard";
 import { TodoPriority } from "../../lib/types";
-import { BarChart2, ChevronDown, ChevronRight } from "lucide-react";
+import { BarChart2 } from "lucide-react";
 import { sortTodosByDueTime } from "../../lib/todoSort";
+import { CollapsibleGroupHeader } from "../timeline/CollapsibleGroupHeader";
 
 interface PriorityViewProps {
   selectedId: string | null;
@@ -15,12 +16,13 @@ const PRIORITY_GROUPS: Array<{
   priority: TodoPriority;
   label: string;
   color: string;
-  bgColor: string;
+  dot: string;
+  count: string;
 }> = [
-  { priority: "urgent", label: "紧急", color: "text-red-400", bgColor: "bg-red-500/10 border-red-500/20" },
-  { priority: "high", label: "高", color: "text-amber-400", bgColor: "bg-amber-500/10 border-amber-500/20" },
-  { priority: "medium", label: "普通", color: "text-indigo-400", bgColor: "bg-indigo-500/10 border-indigo-500/20" },
-  { priority: "low", label: "低", color: "text-slate-400", bgColor: "bg-slate-500/10 border-slate-500/20" },
+  { priority: "urgent", label: "紧急", color: "text-red-400", dot: "bg-red-400", count: "bg-red-500/12 text-red-400" },
+  { priority: "high", label: "高", color: "text-amber-400", dot: "bg-amber-400", count: "bg-amber-500/12 text-amber-500" },
+  { priority: "medium", label: "普通", color: "text-indigo-400", dot: "bg-indigo-400", count: "bg-indigo-500/12 text-indigo-500" },
+  { priority: "low", label: "低", color: "text-slate-400", dot: "bg-slate-400", count: "bg-slate-500/12 text-slate-500" },
 ];
 
 export function PriorityView({ selectedId, onSelect }: PriorityViewProps) {
@@ -61,33 +63,28 @@ export function PriorityView({ selectedId, onSelect }: PriorityViewProps) {
         };
 
         return (
-          <div key={group.priority} className="glass-card rounded-xl overflow-hidden">
-            <button
-              onClick={toggleGroup}
-              className={`w-full flex items-center gap-2 px-4 py-2.5 border-b border-transparent hover:bg-muted/50 transition-colors ${group.bgColor}`}
-            >
-              <span className={`text-xs font-bold uppercase tracking-wider ${group.color}`}>
-                {group.label}
-              </span>
-              <span className={`text-[10px] ${group.color} opacity-70`}>{list.length} 项</span>
-              <span className="flex-1" />
-              {isCollapsed ? (
-                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-              )}
-            </button>
+          <div key={group.priority} className="glass-card rounded-xl overflow-hidden px-3 py-2.5">
+            <CollapsibleGroupHeader
+              title={group.label}
+              collapsed={isCollapsed}
+              onToggle={toggleGroup}
+              countText={`${list.length} 项`}
+              dotClassName={group.dot}
+              titleClassName={group.color}
+              countClassName={group.count}
+              className="mb-0"
+            />
             {!isCollapsed && (
-            <div className="px-3 pb-3 pt-2 space-y-2">
-              {list.map((todo) => (
-                <TodoCard
-                  key={todo.id}
-                  todo={todo}
-                  isSelected={selectedId === todo.id}
-                  onClick={() => onSelect(todo.id)}
-                />
-              ))}
-            </div>
+              <div className="pt-2 space-y-2">
+                {list.map((todo) => (
+                  <TodoCard
+                    key={todo.id}
+                    todo={todo}
+                    isSelected={selectedId === todo.id}
+                    onClick={() => onSelect(todo.id)}
+                  />
+                ))}
+              </div>
             )}
           </div>
         );

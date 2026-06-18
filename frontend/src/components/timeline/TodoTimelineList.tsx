@@ -1,9 +1,9 @@
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import type { Todo } from "../lib/types";
-import { cn } from "../lib/utils";
-import { sortTodosByDueTime } from "../lib/todoSort";
-import { TodoCard } from "./TodoCard";
+import type { Todo } from "../../lib/types";
+import { cn } from "../../lib/utils";
+import { sortTodosByDueTime } from "../../lib/todoSort";
+import { TodoCard } from "../TodoCard";
 
 interface TodoTimelineListProps {
   todos: Todo[];

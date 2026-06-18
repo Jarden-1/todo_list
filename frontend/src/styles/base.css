@@ -1,0 +1,67 @@
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: oklch(from var(--ring) l c h / 50%);
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', sans-serif;
+  }
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    cursor: pointer;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  *.scrollbar-active {
+    scrollbar-color: oklch(0.5 0 0 / 22%) transparent;
+  }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 2px;
+  }
+  *.scrollbar-active::-webkit-scrollbar-thumb {
+    background: oklch(0.5 0 0 / 22%);
+  }
+  *.scrollbar-active::-webkit-scrollbar-thumb:hover { background: oklch(0.5 0 0 / 35%); }
+
+  /* Light mode datetime-local input */
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: none;
+    opacity: 0.5;
+  }
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.4;
+  }
+
+  /* Light mode select */
+  select option {
+    background: white;
+    color: #1e1e2e;
+  }
+  .dark select option {
+    background: #1a1a2e;
+    color: #e2e8f0;
+  }
+}

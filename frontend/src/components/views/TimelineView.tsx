@@ -1,10 +1,11 @@
 // SmartTodo - Timeline View
+import { useState } from "react";
 import { useTodo } from "../../contexts/TodoContext";
 import { Clock } from "lucide-react";
 import { Todo } from "../../lib/types";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { TodoTimelineList } from "../TodoTimelineList";
+import { TodoTimelineGroup } from "../timeline/TodoTimelineGroup";
 
 interface TimelineViewProps {
   selectedId: string | null;
@@ -47,6 +48,16 @@ function getGroupTone(key: string, today: Date) {
 
 export function TimelineView({ selectedId, onSelect }: TimelineViewProps) {
   const { todos } = useTodo();
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const activeTodos = todos.filter(
     (t) => t.status !== "done" && t.status !== "cancelled"
@@ -80,23 +91,25 @@ export function TimelineView({ selectedId, onSelect }: TimelineViewProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {sortedGroups.map(([group, list]) => {
         const tone = getGroupTone(group, today);
         const label =
           group === NO_DUE_KEY ? "无截止时间" : getDateLabel(parseISO(group), today);
+        const isCollapsed = collapsedGroups.has(group);
 
         return (
-          <div key={group}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`w-2 h-2 rounded-full ${tone.dot}`} />
-              <h3 className={`text-xs font-semibold tracking-wide ${tone.text}`}>
-                {label}
-              </h3>
-              <span className="text-[10px] text-muted-foreground">{list.length}</span>
-            </div>
-            <TodoTimelineList todos={list} selectedId={selectedId} onSelect={onSelect} />
-          </div>
+          <TodoTimelineGroup
+            key={group}
+            title={label}
+            todos={list}
+            collapsed={isCollapsed}
+            onToggle={() => toggleGroup(group)}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            dotClassName={tone.dot}
+            titleClassName={tone.text}
+          />
         );
       })}
     </div>
