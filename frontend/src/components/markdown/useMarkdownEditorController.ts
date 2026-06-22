@@ -117,8 +117,13 @@ export function useMarkdownEditorController({
         // formatBlock is unreliable on an empty contentEditable. Create an
         // empty heading/paragraph block and put the caret inside it; do not
         // insert visible placeholder words.
-        const tag = level === 0 ? "p" : (`h${level}` as "h1" | "h2" | "h3");
-        richBridge.setEmptyRichBlock(tag);
+        const tagByLevel: Record<HeadingLevel, "p" | "h1" | "h2" | "h3"> = {
+          0: "p",
+          1: "h1",
+          2: "h2",
+          3: "h3",
+        };
+        richBridge.setEmptyRichBlock(tagByLevel[level]);
       } else {
         richBridge.runRichCommand("formatBlock", level === 0 ? "p" : `h${level}`);
       }
@@ -327,7 +332,7 @@ export function useMarkdownEditorController({
       }
       if (event.shiftKey && (key === "7" || event.code === "Digit7")) {
         event.preventDefault();
-        richBridge.runRichCommand("insertOrderedList");
+        applyList(true);
         return;
       }
       if (event.shiftKey && (key === "8" || event.code === "Digit8")) {

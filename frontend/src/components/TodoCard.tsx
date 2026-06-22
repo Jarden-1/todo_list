@@ -39,6 +39,9 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
   useEffect(() => {
     return () => {
       if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
+      // Also clear the pending completion timer so it can't fire setState on an
+      // unmounted card (list refresh / view switch within the 320ms window).
+      if (completeTimerRef.current) window.clearTimeout(completeTimerRef.current);
     };
   }, []);
 

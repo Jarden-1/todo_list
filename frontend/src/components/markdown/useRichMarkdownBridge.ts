@@ -198,6 +198,10 @@ export function useRichMarkdownBridge({
       return;
     }
     renderRichFromMarkdown(value);
+    // Intentionally only depends on [enabled, value]; the helper functions are
+    // stable for this hook instance and re-running on their identity would
+    // cause unnecessary DOM rewrites.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, value]);
 
   useEffect(() => {
