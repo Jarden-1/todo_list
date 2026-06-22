@@ -79,12 +79,17 @@
     content: attr(data-placeholder);
     color: var(--muted-foreground);
     pointer-events: none;
-    /* Absolutely positioned so the placeholder never occupies layout space —
-       this keeps the caret aligned to the first line even if a stray empty
-       block briefly remains in the editor. */
+    /* Absolutely positioned so the placeholder never occupies layout space.
+       Aligned to the editor's content box (matching its padding) so it sits on
+       the exact same line as the caret. */
     position: absolute;
     top: 0;
     left: 0;
+  }
+  /* When empty, collapse the editor's own flow content to a single zero-margin
+     line so the caret sits on the first line, exactly over the placeholder. */
+  .markdown-rich-editor[data-empty="true"] > * {
+    margin: 0;
   }
   .markdown-rich-editor:focus {
     outline: none;

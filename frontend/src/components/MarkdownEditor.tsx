@@ -148,6 +148,7 @@ export function MarkdownEditor({
           suppressContentEditableWarning
           onInput={editor.handleRichInput}
           onBlur={editor.handleRichBlur}
+          onFocus={editor.handleRichFocus}
           onPaste={editor.handlePaste}
           onCompositionStart={editor.handleCompositionStart}
           onCompositionEnd={editor.handleCompositionEnd}

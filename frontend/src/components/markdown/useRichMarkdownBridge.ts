@@ -247,6 +247,13 @@ export function useRichMarkdownBridge({
     rememberSelection();
   };
 
+  // On focus, drop any stray empty block so the caret starts on the first line
+  // (aligned with the placeholder) instead of being pushed below it.
+  const handleFocus = () => {
+    clearIfEmpty();
+    rememberSelection();
+  };
+
   const handleBlur = () => {
     emitRichChange();
     normalizeRichEditor(false);
@@ -269,6 +276,7 @@ export function useRichMarkdownBridge({
     setEmptyRichBlock,
     handleInput,
     handleBlur,
+    handleFocus,
     handleCompositionStart,
     handleCompositionEnd,
     handleSelectionSnapshot,

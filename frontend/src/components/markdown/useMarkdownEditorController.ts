@@ -404,6 +404,7 @@ export function useMarkdownEditorController({
     handlePaste,
     handleRichInput: richBridge.handleInput,
     handleRichBlur: richBridge.handleBlur,
+    handleRichFocus: richBridge.handleFocus,
     handleCompositionStart: richBridge.handleCompositionStart,
     handleCompositionEnd: richBridge.handleCompositionEnd,
     handleRichSelectionSnapshot: richBridge.handleSelectionSnapshot,
