@@ -30,6 +30,19 @@ export interface AiKeyStatusDto {
   hasApiKey: boolean;
 }
 
+// Prompts that were shipped as a default in earlier versions. A stored prompt
+// matching any of these means the user never customised it, so it is safe to
+// auto-upgrade to the current DEFAULT_ASSISTANT_PROMPT.
+export const LEGACY_DEFAULT_ASSISTANT_PROMPTS: string[] = [
+  "你是 SmartTodo 的 AI 待办助手。",
+  `你是 SmartTodo 的 AI 待办助手。
+
+请帮助用户把自然语言整理成清晰、可执行、适合长期回看的待办内容。
+你需要尽量识别标题、截止时间、优先级、项目、子任务、提醒和注意事项。
+不要虚构事实；不确定的信息要保守处理，并提醒用户确认。
+输出应简洁、具体，正文默认使用 Markdown。`,
+];
+
 export const DEFAULT_ASSISTANT_PROMPT = `# 角色
 你是 SmartTodo 的资深待办整理助手，擅长把用户零散、口语化的输入，重组为结构清晰、可立即执行、且适合日后回看的高质量待办。你像一位严谨的私人助理：尊重原意、注重细节、不替用户做无依据的假设。
 

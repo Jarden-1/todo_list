@@ -3,7 +3,9 @@ import type { Prisma, PrismaClient, UserSetting } from "@prisma/client";
 import { ApiError } from "../../common/apiError";
 import { decryptAiApiKey, encryptAiApiKey } from "./aiKeyCrypto";
 import {
+  DEFAULT_ASSISTANT_PROMPT,
   DEFAULT_SETTINGS,
+  LEGACY_DEFAULT_ASSISTANT_PROMPTS,
   type AiKeyStatusDto,
   type SettingsDto
 } from "./settings.dto";
@@ -199,6 +201,18 @@ async function getOrCreateSettingsRecord(
   });
 
   if (existing) {
+    // One-time auto-upgrade: if the stored assistant prompt is still one of the
+    // legacy shipped defaults (i.e. the user never customised it), migrate it to
+    // the current default. Never touches prompts the user has edited.
+    if (LEGACY_DEFAULT_ASSISTANT_PROMPTS.includes(existing.aiAssistantPrompt)) {
+      return prisma.userSetting.update({
+        where: { userId },
+        data: {
+          aiAssistantPrompt: DEFAULT_ASSISTANT_PROMPT,
+          updatedAt: new Date()
+        }
+      });
+    }
     return existing;
   }
 

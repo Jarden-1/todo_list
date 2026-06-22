@@ -6,6 +6,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { unauthenticatedError } from "./auth.errors";
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+// Sliding renewal: re-extend a session (and its cookie) once it has less than
+// this much life left, so an actively-used login effectively never expires.
+const SESSION_RENEW_THRESHOLD_MS = 1000 * 60 * 60 * 24 * 7;
 
 type SessionDatabase = PrismaClient | Prisma.TransactionClient;
 type CookieOptions = NonNullable<Parameters<FastifyReply["setCookie"]>[2]>;
@@ -92,6 +95,36 @@ export async function resolveRequestSession(
     userId: session.userId,
     sessionId: session.id
   };
+}
+
+// Sliding-window renewal. If the current session is valid but approaching
+// expiry, push its expiry back to a fresh full TTL and re-issue the cookie.
+// Returns the new expiry when renewed, otherwise null. Keeps an actively-used
+// login alive indefinitely while still expiring abandoned sessions.
+export async function renewSessionIfNeeded(
+  db: SessionDatabase,
+  app: FastifyInstance,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  now = new Date()
+): Promise<void> {
+  if (!request.auth?.sessionId || !request.sessionToken) return;
+
+  const session = await db.session.findUnique({
+    where: { id: request.auth.sessionId },
+    select: { expiresAt: true, revokedAt: true }
+  });
+  if (!session || session.revokedAt) return;
+
+  const msLeft = session.expiresAt.getTime() - now.getTime();
+  if (msLeft > SESSION_RENEW_THRESHOLD_MS) return;
+
+  const nextExpiresAt = getSessionExpiresAt(now);
+  await db.session.update({
+    where: { id: request.auth.sessionId },
+    data: { expiresAt: nextExpiresAt }
+  });
+  setSessionCookie(app, reply, request.sessionToken, nextExpiresAt);
 }
 
 export async function requireRequestSession(

@@ -6,6 +6,7 @@ import { AuthService } from "./auth.service";
 import {
   clearSessionCookie,
   getSessionMeta,
+  renewSessionIfNeeded,
   requireRequestSession,
   resolveRequestSession,
   revokeSession,
@@ -61,9 +62,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return dataResponse({ ok: true });
   });
 
-  app.get("/auth/me", async (request) => {
+  app.get("/auth/me", async (request, reply) => {
     const auth = await requireRequestSession(app.prisma, request);
     const user = await authService.getCurrentUser(auth.userId);
+
+    // Keep an actively-used login alive: slide the expiry window forward.
+    await renewSessionIfNeeded(app.prisma, app, request, reply);
 
     return dataResponse({
       user: toAuthUserDto(user)
