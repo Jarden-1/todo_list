@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
-import { PRESET_MODELS } from "./settingsOptions";
+import { AI_MODEL_PRESETS } from "./aiModelPresets";
 import { SettingsCard } from "./SettingsCard";
 import { SettingsToggleRow } from "./SettingsToggleRow";
 
@@ -54,6 +54,22 @@ export function AiSettingsSection() {
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1600);
   };
+
+  const applyPreset = (presetId: string) => {
+    const preset = AI_MODEL_PRESETS.find((item) => item.id === presetId);
+    if (!preset) return;
+    // Selecting a recommended model fills in both the model id and its vendor's
+    // Base URL. The user can still edit either field afterwards.
+    setModel(preset.model);
+    setBaseUrl(preset.baseUrl);
+  };
+
+  const activePresetId = AI_MODEL_PRESETS.find(
+    (item) => item.model === model.trim() && item.baseUrl === baseUrl.trim()
+  )?.id;
+
+  const domesticPresets = AI_MODEL_PRESETS.filter((item) => item.domestic);
+  const overseasPresets = AI_MODEL_PRESETS.filter((item) => !item.domestic);
 
   const handleSaveAi = async () => {
     try {
@@ -135,28 +151,72 @@ export function AiSettingsSection() {
           </div>
         ) : (
           <div className="mt-4 space-y-4">
+            <div>
+              <label className="settings-label mb-1.5">推荐模型（点击快速填充模型与 Base URL）</label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {domesticPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => applyPreset(preset.id)}
+                      className={cn(
+                        "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                        activePresetId === preset.id
+                          ? "border-primary/55 bg-primary/10 text-primary font-medium"
+                          : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      )}
+                      title={`${preset.model} · ${preset.baseUrl}`}
+                    >
+                      {preset.vendor}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {overseasPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => applyPreset(preset.id)}
+                      className={cn(
+                        "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                        activePresetId === preset.id
+                          ? "border-primary/55 bg-primary/10 text-primary font-medium"
+                          : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      )}
+                      title={`${preset.model} · ${preset.baseUrl}`}
+                    >
+                      {preset.vendor} · {preset.modelLabel}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
               <div>
-                <label className="settings-label mb-1.5">模型</label>
+                <label className="settings-label mb-1.5">模型（可自定义）</label>
                 <input
                   value={model}
                   onChange={(event) => setModel(event.target.value)}
                   list="smarttodo-ai-models"
-                  placeholder="例如 gpt-4o-mini"
+                  placeholder="例如 deepseek-chat"
                   className="field-input"
                 />
                 <datalist id="smarttodo-ai-models">
-                  {PRESET_MODELS.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
+                  {AI_MODEL_PRESETS.map((item) => (
+                    <option key={item.id} value={item.model}>
+                      {item.vendor}
+                    </option>
                   ))}
                 </datalist>
               </div>
               <div>
-                <label className="settings-label mb-1.5">Base URL</label>
+                <label className="settings-label mb-1.5">Base URL（可自定义）</label>
                 <input
                   value={baseUrl}
                   onChange={(event) => setBaseUrl(event.target.value)}
-                  placeholder="https://api.openai.com/v1"
+                  placeholder="https://api.deepseek.com/v1"
                   className="field-input"
                 />
               </div>

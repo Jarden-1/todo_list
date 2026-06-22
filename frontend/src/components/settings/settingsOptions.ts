@@ -1,9 +1,4 @@
-export const PRESET_MODELS = [
-  { value: "gpt-4o", label: "GPT-4o" },
-  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-  { value: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
-  { value: "deepseek-chat", label: "DeepSeek Chat" },
-];
+// AI model presets moved to ./aiModelPresets (with Base URL linkage).
 
 export const ADVANCE_OPTIONS = [
   { value: 5, label: "5 分钟前" },
