@@ -1,9 +1,13 @@
-import type { RefObject } from "react";
-import { AlertTriangle, Check, Edit3, User } from "lucide-react";
+import { useState, type RefObject } from "react";
+import { AlertTriangle, Check, Edit3, User, X } from "lucide-react";
+import { toast } from "sonner";
 import type { Project, Todo, TodoPriority } from "../../lib/types";
 import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
 import { PRIORITY_OPTIONS } from "../../lib/todoOptions";
 import { cn } from "../../lib/utils";
+import { useTodo } from "../../contexts/TodoContext";
+
+const NEW_PROJECT_VALUE = "__new_project__";
 
 interface TodoMetadataSectionProps {
   todo: Todo;
@@ -34,6 +38,40 @@ export function TodoMetadataSection({
   onOpenDuePicker,
   onPostpone,
 }: TodoMetadataSectionProps) {
+  const { addProject } = useTodo();
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
+
+  const handleProjectSelect = (value: string) => {
+    if (value === NEW_PROJECT_VALUE) {
+      setCreatingProject(true);
+      setNewProjectName("");
+      return;
+    }
+    onUpdate({ projectId: value || null });
+  };
+
+  const handleCreateProject = async () => {
+    const name = newProjectName.trim();
+    if (!name) {
+      setCreatingProject(false);
+      return;
+    }
+    if (savingProject) return;
+    setSavingProject(true);
+    try {
+      const project = await addProject(name);
+      onUpdate({ projectId: project.id });
+      setNewProjectName("");
+      setCreatingProject(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "项目创建失败");
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
   return (
     <>
       <div>
@@ -52,16 +90,63 @@ export function TodoMetadataSection({
       <div className="grid grid-cols-2 gap-2.5">
         <div>
           <label className="detail-label">项目</label>
-          <select
-            value={todo.projectId ?? ""}
-            onChange={(event) => onUpdate({ projectId: event.target.value || null })}
-            className="field-input mt-1"
-          >
-            <option value="">未分配</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>{project.name}</option>
-            ))}
-          </select>
+          {creatingProject ? (
+            <div className="mt-1 flex items-center gap-1">
+              <input
+                autoFocus
+                value={newProjectName}
+                onChange={(event) => setNewProjectName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleCreateProject();
+                  }
+                  if (event.key === "Escape") {
+                    setCreatingProject(false);
+                    setNewProjectName("");
+                  }
+                }}
+                placeholder="新项目名称…"
+                className="field-input min-w-0 flex-1"
+              />
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  void handleCreateProject();
+                }}
+                disabled={savingProject}
+                className="flex-shrink-0 p-1 text-emerald-500 hover:text-emerald-400 disabled:opacity-40"
+                aria-label="确认新建项目"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  setCreatingProject(false);
+                  setNewProjectName("");
+                }}
+                className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
+                aria-label="取消新建项目"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <select
+              value={todo.projectId ?? ""}
+              onChange={(event) => handleProjectSelect(event.target.value)}
+              className="field-input mt-1"
+            >
+              <option value="">未分配</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>{project.name}</option>
+              ))}
+              <option value={NEW_PROJECT_VALUE}>+ 新建项目…</option>
+            </select>
+          )}
         </div>
 
         <div>
