@@ -22,7 +22,7 @@ interface TodoCardProps {
 }
 
 export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
-  const { completeTodo, uncompleteTodo, getProjectById, setSelectedTodoId, refreshWorkspace } = useTodo();
+  const { completeTodo, uncompleteTodo, getProjectById, setSelectedTodoId, selectedTodoId, refreshWorkspace } = useTodo();
   const { settings } = useSettings();
   const [completeFeedback, setCompleteFeedback] = useState(false);
   const completeTimerRef = useRef<number | null>(null);
@@ -49,6 +49,10 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
     if (settings.feedback.completeSound) playCompleteSound();
     if (settings.feedback.completeAnimation) setCompleteFeedback(true);
 
+    // If this todo's detail panel is open, collapse it after completing.
+    const wasSelected = selectedTodoId === todo.id;
+    if (wasSelected) setSelectedTodoId(null);
+
     let completionApplied = false;
     const completionTimer = window.setTimeout(() => {
       completionApplied = true;
@@ -68,7 +72,7 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
 
     toast.success("待办已完成", {
       description: todo.title,
-      duration: 8000,
+      duration: 4000,
       action: {
         label: "撤销",
         onClick: () => {
@@ -77,6 +81,8 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
           if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
           feedbackTimerRef.current = null;
           setCompleteFeedback(false);
+          // Restore the detail panel selection on undo.
+          if (wasSelected) setSelectedTodoId(todo.id);
           if (completionApplied) {
             void uncompleteTodo(todo.id).catch((error) => {
               toast.error(error instanceof Error ? error.message : "撤销完成失败");

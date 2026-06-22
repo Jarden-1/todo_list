@@ -117,7 +117,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
             </button>
           </div>
         ),
-        { duration: 8000 }
+        { duration: 6000 }
       );
     } catch (error) {
       toast.error(error instanceof Error ? `AI 整理失败：${error.message}` : "AI 整理失败");

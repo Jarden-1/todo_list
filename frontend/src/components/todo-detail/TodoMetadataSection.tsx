@@ -1,8 +1,8 @@
 import type { RefObject } from "react";
 import { AlertTriangle, Check, Edit3, User } from "lucide-react";
-import type { Project, Todo, TodoPriority, TodoStatus } from "../../lib/types";
+import type { Project, Todo, TodoPriority } from "../../lib/types";
 import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
-import { PRIORITY_OPTIONS, STATUS_OPTIONS } from "../../lib/todoOptions";
+import { PRIORITY_OPTIONS } from "../../lib/todoOptions";
 import { cn } from "../../lib/utils";
 
 interface TodoMetadataSectionProps {
@@ -36,32 +36,17 @@ export function TodoMetadataSection({
 }: TodoMetadataSectionProps) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-2.5">
-        <div>
-          <label className="detail-label">状态</label>
-          <select
-            value={todo.status}
-            onChange={(event) => onUpdate({ status: event.target.value as TodoStatus })}
-            className="field-input mt-1"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="detail-label">优先级</label>
-          <select
-            value={todo.priority}
-            onChange={(event) => onUpdate({ priority: event.target.value as TodoPriority })}
-            className="field-input mt-1"
-          >
-            {PRIORITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label className="detail-label">优先级</label>
+        <select
+          value={todo.priority}
+          onChange={(event) => onUpdate({ priority: event.target.value as TodoPriority })}
+          className="field-input mt-1"
+        >
+          {PRIORITY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-2.5">

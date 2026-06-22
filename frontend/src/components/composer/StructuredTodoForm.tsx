@@ -1,5 +1,5 @@
 import { Calendar, Edit3, Flag, FolderOpen, Plus, User } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Project, TodoPriority } from "../../lib/types";
 import { PRIORITY_OPTIONS } from "../../lib/todoOptions";
@@ -27,6 +27,14 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
   const [assignee, setAssignee] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const dueAtRef = useRef<HTMLInputElement>(null);
+
+  const openDuePicker = () => {
+    const input = dueAtRef.current;
+    if (!input) return;
+    input.focus();
+    input.showPicker?.();
+  };
 
   const reset = () => {
     setTitle("");
@@ -97,12 +105,25 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
           <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1 mb-1">
             <Calendar className="w-3 h-3" /> 截止时间
           </label>
-          <input
-            type="datetime-local"
-            value={dueAt}
-            onChange={(event) => setDueAt(event.target.value)}
-            className="field-input"
-          />
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={openDuePicker}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openDuePicker();
+              }
+            }}
+          >
+            <input
+              ref={dueAtRef}
+              type="datetime-local"
+              value={dueAt}
+              onChange={(event) => setDueAt(event.target.value)}
+              className="field-input cursor-pointer"
+            />
+          </div>
         </div>
       </div>
 

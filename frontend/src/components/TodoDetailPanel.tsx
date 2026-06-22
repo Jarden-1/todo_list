@@ -1,6 +1,6 @@
 // SmartTodo - Todo Detail Panel
 // Full editing panel: title, status, priority, due date, project, assignee, subtasks, markdown
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Todo } from "../lib/types";
 import { useTodo } from "../contexts/TodoContext";
 import { isOverdue } from "../lib/dateUtils";
@@ -40,6 +40,28 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
   const dueAtRef = useRef<HTMLInputElement>(null);
   const detailScroll = useTransientScrollbar<HTMLDivElement>();
 
+  // Debounced markdown persistence. Typing only updates local state; the API
+  // call is deferred so we don't trigger a todos refresh (which would reset
+  // markdownValue mid-typing and break the rich editor caret).
+  const markdownTimerRef = useRef<number | null>(null);
+  const pendingMarkdownRef = useRef<string | null>(null);
+  const todoIdRef = useRef(todo.id);
+  todoIdRef.current = todo.id;
+
+  const flushMarkdown = useCallback(() => {
+    if (markdownTimerRef.current) {
+      window.clearTimeout(markdownTimerRef.current);
+      markdownTimerRef.current = null;
+    }
+    const pending = pendingMarkdownRef.current;
+    if (pending === null) return;
+    const targetId = todoIdRef.current;
+    pendingMarkdownRef.current = null;
+    void updateTodo(targetId, { contentMarkdown: pending }).catch(() => {
+      toast.error("正文保存失败，请稍后刷新确认");
+    });
+  }, [updateTodo]);
+
   useEffect(() => {
     setTitleValue(todo.title);
     setAssigneeValue(todo.assignee ?? "");
@@ -48,9 +70,29 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
     setShowSubtaskInput(false);
   }, [todo.id, todo.title, todo.assignee]);
 
+  // When the selected todo changes, flush any pending edit for the previous
+  // todo, then load the new todo's content.
   useEffect(() => {
+    flushMarkdown();
+    pendingMarkdownRef.current = null;
     setMarkdownValue(todo.contentMarkdown);
-  }, [todo.id, todo.contentMarkdown]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todo.id]);
+
+  // Sync external content changes ONLY when there is no local pending edit
+  // (e.g. AI polish from the server, or another client). Local typing keeps
+  // ownership until it is flushed.
+  useEffect(() => {
+    if (pendingMarkdownRef.current !== null) return;
+    setMarkdownValue(todo.contentMarkdown);
+  }, [todo.contentMarkdown]);
+
+  // Flush pending markdown when the panel unmounts.
+  useEffect(() => {
+    return () => {
+      flushMarkdown();
+    };
+  }, [flushMarkdown]);
 
   const handleTitleSave = async () => {
     if (titleValue.trim()) {
@@ -66,9 +108,12 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
 
   const handleMarkdownChange = (nextMarkdown: string) => {
     setMarkdownValue(nextMarkdown);
-    void updateTodo(todo.id, { contentMarkdown: nextMarkdown }).catch(() => {
-      toast.error("正文保存失败，请稍后刷新确认");
-    });
+    pendingMarkdownRef.current = nextMarkdown;
+    if (markdownTimerRef.current) window.clearTimeout(markdownTimerRef.current);
+    markdownTimerRef.current = window.setTimeout(() => {
+      markdownTimerRef.current = null;
+      flushMarkdown();
+    }, 800);
   };
 
   const handleMarkdownPolish = async () => {
@@ -77,6 +122,11 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
       const timezone = user?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
       const { markdown } = await polishMarkdown(markdownValue, timezone);
       if (!markdown) return;
+      if (markdownTimerRef.current) {
+        window.clearTimeout(markdownTimerRef.current);
+        markdownTimerRef.current = null;
+      }
+      pendingMarkdownRef.current = null;
       setMarkdownValue(markdown);
       await updateTodo(todo.id, { contentMarkdown: markdown });
       toast.success("AI 已润色正文");

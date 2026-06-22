@@ -99,7 +99,17 @@ export function TodoSubtasksSection({
             placeholder="子任务标题…"
             className="flex-1 field-input"
           />
-          <button onClick={onAddSubtask} className="text-emerald-500 hover:text-emerald-400">
+          <button
+            onMouseDown={(event) => {
+              // Use mousedown (fires before input blur) so adding always runs
+              // before the blur handler can close the input. Prevent default
+              // to keep the input focused during the add.
+              event.preventDefault();
+              onAddSubtask();
+            }}
+            className="text-emerald-500 hover:text-emerald-400"
+            aria-label="添加子任务"
+          >
             <Check className="w-3.5 h-3.5" />
           </button>
         </div>

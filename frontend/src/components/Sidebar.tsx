@@ -15,7 +15,11 @@ import {
   Moon,
   Settings,
   LogOut,
+  Plus,
+  Check,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "../lib/utils";
 import { isOverdue, isTodayDate } from "../lib/dateUtils";
 import { useTransientScrollbar } from "../hooks/useTransientScrollbar";
@@ -69,9 +73,12 @@ interface SidebarProps {
 }
 
 export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLogout, onNavigate }: SidebarProps) {
-  const { currentView, setCurrentView, todos, projects } = useTodo();
+  const { currentView, setCurrentView, todos, projects, addProject } = useTodo();
   const { theme, toggleTheme } = useTheme();
   const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
   const navScroll = useTransientScrollbar<HTMLElement>();
 
   const handleProjectClick = (projectId: string) => {
@@ -79,6 +86,31 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
     onNavigate?.();
     setCurrentView("projects");
     onFilterProject(filterProjectId === projectId ? null : projectId);
+  };
+
+  const startCreateProject = () => {
+    setProjectsExpanded(true);
+    setCreatingProject(true);
+    setNewProjectName("");
+  };
+
+  const handleCreateProject = async () => {
+    const name = newProjectName.trim();
+    if (!name) {
+      setCreatingProject(false);
+      return;
+    }
+    if (savingProject) return;
+    setSavingProject(true);
+    try {
+      await addProject(name);
+      setNewProjectName("");
+      setCreatingProject(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "项目创建失败");
+    } finally {
+      setSavingProject(false);
+    }
   };
 
   return (
@@ -147,20 +179,79 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
 
         {/* Projects section */}
         <div className="mt-4 px-2">
-          <button
-            onClick={() => setProjectsExpanded(!projectsExpanded)}
-            className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold text-sidebar-foreground/52 uppercase tracking-widest hover:text-sidebar-foreground transition-colors rounded-lg hover:bg-white/24 dark:hover:bg-white/5"
-          >
-            {projectsExpanded ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
-            项目
-          </button>
+          <div className="group/projhdr flex items-center gap-1 pr-1">
+            <button
+              onClick={() => setProjectsExpanded(!projectsExpanded)}
+              className="flex flex-1 items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold text-sidebar-foreground/52 uppercase tracking-widest hover:text-sidebar-foreground transition-colors rounded-lg hover:bg-white/24 dark:hover:bg-white/5"
+            >
+              {projectsExpanded ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              )}
+              项目
+            </button>
+            <button
+              onClick={startCreateProject}
+              title="新建项目"
+              aria-label="新建项目"
+              className="flex-shrink-0 p-1 rounded-md text-sidebar-foreground/45 hover:text-sidebar-foreground hover:bg-white/24 dark:hover:bg-white/5 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           {projectsExpanded && (
             <div className="mt-1 space-y-0.5">
+              {creatingProject && (
+                <div className="flex items-center gap-1 px-2 py-1">
+                  <input
+                    autoFocus
+                    value={newProjectName}
+                    onChange={(event) => setNewProjectName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void handleCreateProject();
+                      if (event.key === "Escape") {
+                        setCreatingProject(false);
+                        setNewProjectName("");
+                      }
+                    }}
+                    placeholder="项目名称…"
+                    className="flex-1 min-w-0 bg-white/10 dark:bg-white/5 rounded-md px-2 py-1 text-xs text-sidebar-foreground placeholder:text-sidebar-foreground/40 outline-none focus:bg-white/20"
+                  />
+                  <button
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      void handleCreateProject();
+                    }}
+                    disabled={savingProject}
+                    className="flex-shrink-0 p-1 text-emerald-400 hover:text-emerald-300 disabled:opacity-40"
+                    aria-label="确认新建项目"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      setCreatingProject(false);
+                      setNewProjectName("");
+                    }}
+                    className="flex-shrink-0 p-1 text-sidebar-foreground/40 hover:text-sidebar-foreground"
+                    aria-label="取消新建项目"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              {projects.length === 0 && !creatingProject && (
+                <button
+                  onClick={startCreateProject}
+                  className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-sidebar-foreground/45 hover:text-sidebar-foreground hover:bg-white/24 dark:hover:bg-white/5 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  新建项目
+                </button>
+              )}
               {projects.map((project) => {
                 const count = todos.filter(
                   (t) =>

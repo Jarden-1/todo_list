@@ -77,8 +77,12 @@ export function useRichMarkdownBridge({
     if (!enabled) return;
     const editor = richEditorRef.current;
     if (!editor) return;
+    // Never rewrite the DOM while the user is actively editing (typing / IME
+    // composition). Rewriting innerHTML here is what makes the caret jump to
+    // the start and breaks IME input in the detail panel.
+    if (document.activeElement === editor || composingRef.current) return;
     if (richHtmlToMarkdown(editor) === value) {
-      if (document.activeElement !== editor) normalizeRichEditor(false);
+      normalizeRichEditor(false);
       return;
     }
     renderRichFromMarkdown(value);
@@ -90,10 +94,10 @@ export function useRichMarkdownBridge({
   }, [autoFocus, enabled]);
 
   const handleInput = () => {
+    // Only emit the markdown change here. Do NOT rewrite the editor DOM on
+    // every keystroke — re-rendering innerHTML mid-typing is what caused the
+    // caret to drift. Normalization happens on blur instead.
     emitRichChange();
-    if (!composingRef.current) {
-      requestAnimationFrame(() => normalizeRichEditor(true));
-    }
   };
 
   const handleBlur = () => {
