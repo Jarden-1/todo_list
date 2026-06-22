@@ -7,6 +7,7 @@ import {
   type RefObject,
 } from "react";
 import { toast } from "sonner";
+import { buildApiUrl } from "../../lib/apiClient";
 import { uploadFile } from "../../lib/filesApi";
 import {
   RAW_MARKDOWN_PATTERN,
@@ -126,10 +127,17 @@ export function useMarkdownEditorController({
 
   const applyList = (ordered: boolean) => {
     if (richEditor) {
-      const selectedText = window.getSelection()?.toString().trim();
-      const items = (selectedText ? selectedText.split(/\n+/) : ["列表项"]).map((item) =>
-        `<li>${escapeHtml(item.trim() || "列表项")}</li>`
-      );
+      // Prefer the browser's native list command so the caret lands inside an
+      // empty <li> ready for typing. Only fall back to building HTML from a
+      // multi-line selection. Never inject placeholder text like "列表项".
+      const selectedText = window.getSelection()?.toString() ?? "";
+      if (!selectedText.includes("\n")) {
+        richBridge.runRichCommand(ordered ? "insertOrderedList" : "insertUnorderedList");
+        return;
+      }
+      const items = selectedText
+        .split(/\n+/)
+        .map((item) => `<li>${escapeHtml(item.trim())}</li>`);
       const tag = ordered ? "ol" : "ul";
       richBridge.insertRichHtml(`<${tag}>${items.join("")}</${tag}>`);
       return;
@@ -138,15 +146,16 @@ export function useMarkdownEditorController({
     transformSelectedLines((line, index) => {
       const stripped = line.replace(/^\s*(?:[-*+]\s+|\d+\.\s+)/, "");
       const marker = ordered ? `${index + 1}. ` : "- ";
-      return `${marker}${stripped || "列表项"}`;
+      return `${marker}${stripped}`;
     });
   };
 
   const applyTaskList = () => {
     if (richEditor) {
       const selectedText = window.getSelection()?.toString().trim();
-      const items = (selectedText ? selectedText.split(/\n+/) : ["待办"]).map((item) =>
-        `<li><input type="checkbox" disabled /> ${escapeHtml(item.trim() || "待办")}</li>`
+      // Empty item when no selection, so the user can type into it directly.
+      const items = (selectedText ? selectedText.split(/\n+/) : [""]).map((item) =>
+        `<li><input type="checkbox" disabled /> ${escapeHtml(item.trim())}</li>`
       );
       richBridge.insertRichHtml(`<ul class="contains-task-list">${items.join("")}</ul>`);
       return;
@@ -154,7 +163,7 @@ export function useMarkdownEditorController({
 
     transformSelectedLines((line) => {
       const stripped = line.replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+\.\s+)/, "");
-      return `- [ ] ${stripped || "待办"}`;
+      return `- [ ] ${stripped}`;
     });
   };
 
@@ -185,9 +194,15 @@ export function useMarkdownEditorController({
       const images = await Promise.all(
         files.map(async (file) => {
           const { file: uploaded } = await uploadFile(file, { todoId, type: "image" });
+          const rawUrl = uploaded.url || `/files/${uploaded.id}/content`;
+          // Resolve to an absolute URL so the <img> still loads after the
+          // markdown <-> HTML round-trip (and regardless of the page path).
+          const url = /^https?:\/\//i.test(rawUrl)
+            ? rawUrl
+            : buildApiUrl(rawUrl.replace(/^\/api\/v1/, ""));
           return {
             label: escapeMarkdownLabel(file.name),
-            url: uploaded.url || `/api/v1/files/${uploaded.id}/content`,
+            url,
           };
         })
       );

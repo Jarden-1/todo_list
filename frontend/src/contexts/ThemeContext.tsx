@@ -1,13 +1,27 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
 const THEME_KEY = "smarttodo:theme";
+const FONT_SCALE_KEY = "smarttodo:font-scale";
+
+// Base root font size in px. The slider scales this between MIN and MAX.
+const BASE_FONT_PX = 16;
+export const MIN_FONT_SCALE = 0.8125; // ~13px
+export const MAX_FONT_SCALE = 1.375; // 22px
+const DEFAULT_FONT_SCALE = 1;
+
+function clampFontScale(value: number) {
+  if (Number.isNaN(value)) return DEFAULT_FONT_SCALE;
+  return Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, value));
+}
 
 interface ThemeContextType {
   theme: Theme;
   toggleTheme?: () => void;
   switchable: boolean;
+  fontScale: number;
+  setFontScale: (scale: number) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -31,6 +45,11 @@ export function ThemeProvider({
     return defaultTheme;
   });
 
+  const [fontScale, setFontScaleState] = useState<number>(() => {
+    const stored = localStorage.getItem(FONT_SCALE_KEY);
+    return stored ? clampFontScale(Number(stored)) : DEFAULT_FONT_SCALE;
+  });
+
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
@@ -44,6 +63,16 @@ export function ThemeProvider({
     }
   }, [theme, switchable]);
 
+  useEffect(() => {
+    // Scale the root font size; all rem-based sizing follows.
+    document.documentElement.style.fontSize = `${BASE_FONT_PX * fontScale}px`;
+    localStorage.setItem(FONT_SCALE_KEY, String(fontScale));
+  }, [fontScale]);
+
+  const setFontScale = useCallback((scale: number) => {
+    setFontScaleState(clampFontScale(scale));
+  }, []);
+
   const toggleTheme = switchable
     ? () => {
         setTheme(prev => (prev === "light" ? "dark" : "light"));
@@ -51,7 +80,7 @@ export function ThemeProvider({
     : undefined;
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, switchable }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, switchable, fontScale, setFontScale }}>
       {children}
     </ThemeContext.Provider>
   );

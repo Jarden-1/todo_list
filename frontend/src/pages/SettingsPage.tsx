@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { AiSettingsSection } from "../components/settings/AiSettingsSection";
+import { AppearanceSettingsSection } from "../components/settings/AppearanceSettingsSection";
 import { FeedbackSettingsSection } from "../components/settings/FeedbackSettingsSection";
 import { ReminderSettingsSection } from "../components/settings/ReminderSettingsSection";
 import { SettingsSidePanel } from "../components/settings/SettingsSidePanel";
@@ -29,6 +30,7 @@ export default function SettingsPage({ onBack, onLogout }: SettingsPageProps) {
       <div className="mx-auto w-full max-w-[1428px] px-4 py-6 md:px-8 md:py-8">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start xl:grid-cols-[minmax(0,1fr)_440px] xl:gap-6">
           <div className="min-w-0 space-y-5">
+            <AppearanceSettingsSection />
             <AiSettingsSection />
             <ReminderSettingsSection />
             <FeedbackSettingsSection />

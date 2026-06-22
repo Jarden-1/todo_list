@@ -1,10 +1,13 @@
-import { Calendar, Edit3, Flag, FolderOpen, Plus, User } from "lucide-react";
+import { Calendar, Check, Edit3, Flag, FolderOpen, Plus, User, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Project, TodoPriority } from "../../lib/types";
 import { PRIORITY_OPTIONS } from "../../lib/todoOptions";
 import { cn } from "../../lib/utils";
+import { useTodo } from "../../contexts/TodoContext";
 import { MarkdownEditor } from "../MarkdownEditor";
+
+const NEW_PROJECT_VALUE = "__new_project__";
 
 interface StructuredTodoFormProps {
   projects: Project[];
@@ -20,6 +23,7 @@ interface StructuredTodoFormProps {
 }
 
 export function StructuredTodoForm({ projects, onCancel, onAddTodo }: StructuredTodoFormProps) {
+  const { addProject } = useTodo();
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<TodoPriority>("medium");
   const [dueAt, setDueAt] = useState("");
@@ -27,6 +31,9 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
   const [assignee, setAssignee] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
   const dueAtRef = useRef<HTMLInputElement>(null);
 
   const openDuePicker = () => {
@@ -34,6 +41,35 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
     if (!input) return;
     input.focus();
     input.showPicker?.();
+  };
+
+  const handleProjectSelect = (value: string) => {
+    if (value === NEW_PROJECT_VALUE) {
+      setCreatingProject(true);
+      setNewProjectName("");
+      return;
+    }
+    setProjectId(value);
+  };
+
+  const handleCreateProject = async () => {
+    const name = newProjectName.trim();
+    if (!name) {
+      setCreatingProject(false);
+      return;
+    }
+    if (savingProject) return;
+    setSavingProject(true);
+    try {
+      const project = await addProject(name);
+      setProjectId(project.id);
+      setNewProjectName("");
+      setCreatingProject(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "项目创建失败");
+    } finally {
+      setSavingProject(false);
+    }
   };
 
   const reset = () => {
@@ -132,16 +168,63 @@ export function StructuredTodoForm({ projects, onCancel, onAddTodo }: Structured
           <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1 mb-1">
             <FolderOpen className="w-3 h-3" /> 项目
           </label>
-          <select
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            className="field-input"
-          >
-            <option value="">未分配</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>{project.name}</option>
-            ))}
-          </select>
+          {creatingProject ? (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={newProjectName}
+                onChange={(event) => setNewProjectName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleCreateProject();
+                  }
+                  if (event.key === "Escape") {
+                    setCreatingProject(false);
+                    setNewProjectName("");
+                  }
+                }}
+                placeholder="新项目名称…"
+                className="field-input flex-1 min-w-0"
+              />
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  void handleCreateProject();
+                }}
+                disabled={savingProject}
+                className="flex-shrink-0 p-1 text-emerald-500 hover:text-emerald-400 disabled:opacity-40"
+                aria-label="确认新建项目"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  setCreatingProject(false);
+                  setNewProjectName("");
+                }}
+                className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
+                aria-label="取消新建项目"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <select
+              value={projectId}
+              onChange={(event) => handleProjectSelect(event.target.value)}
+              className="field-input"
+            >
+              <option value="">未分配</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>{project.name}</option>
+              ))}
+              <option value={NEW_PROJECT_VALUE}>+ 新建项目…</option>
+            </select>
+          )}
         </div>
         <div>
           <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1 mb-1">

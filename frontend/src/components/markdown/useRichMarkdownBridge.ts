@@ -52,7 +52,27 @@ export function useRichMarkdownBridge({
   };
 
   const focusRichEditor = () => {
-    richEditorRef.current?.focus();
+    const editor = richEditorRef.current;
+    if (!editor) return;
+    editor.focus();
+
+    // execCommand needs a live caret inside the editor. If the current
+    // selection is outside (or there is none), place the caret at the end so
+    // toolbar actions (emoji / heading / list) actually take effect instead
+    // of being silently dropped.
+    const selection = window.getSelection();
+    const hasCaretInEditor =
+      selection &&
+      selection.rangeCount > 0 &&
+      editor.contains(selection.getRangeAt(0).commonAncestorContainer);
+
+    if (!hasCaretInEditor) {
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
   };
 
   const runRichCommand = (command: string, commandValue?: string) => {
