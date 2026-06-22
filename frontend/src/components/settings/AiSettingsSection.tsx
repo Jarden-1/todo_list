@@ -55,29 +55,51 @@ export function AiSettingsSection() {
     window.setTimeout(() => setSaved(false), 1600);
   };
 
+  const persistModelConfig = async (nextModel: string, nextBaseUrl: string) => {
+    await updateAiModel({
+      model: nextModel.trim(),
+      baseUrl: nextBaseUrl.trim(),
+      assistantPrompt: assistantPrompt.trim() || DEFAULT_ASSISTANT_PROMPT,
+    });
+  };
+
   const applyPreset = (presetId: string) => {
     const preset = AI_MODEL_PRESETS.find((item) => item.id === presetId);
     if (!preset) return;
-    // Selecting a recommended model fills in both the model id and its vendor's
-    // Base URL. The user can still edit either field afterwards.
+    // Selecting a recommended model fills in BOTH the model id and its vendor's
+    // Base URL, and immediately persists it — so the choice survives leaving
+    // the page without needing a separate "save" click.
     setModel(preset.model);
     setBaseUrl(preset.baseUrl);
+    void persistModelConfig(preset.model, preset.baseUrl)
+      .then(() => {
+        flashSaved();
+        toast.success(`已切换并保存：${preset.vendor}`);
+      })
+      .catch((error) =>
+        toast.error(error instanceof Error ? error.message : "模型配置保存失败")
+      );
   };
 
   const activePresetId = AI_MODEL_PRESETS.find(
     (item) => item.model === model.trim() && item.baseUrl === baseUrl.trim()
   )?.id;
 
+  // What is currently SAVED on the server (so the user can see what's in effect).
+  const savedModel = settings.aiModel.model;
+  const savedBaseUrl = settings.aiModel.baseUrl;
+  const savedPreset = AI_MODEL_PRESETS.find(
+    (item) => item.model === savedModel && item.baseUrl === savedBaseUrl
+  );
+  const isDirty =
+    model.trim() !== savedModel || baseUrl.trim() !== savedBaseUrl;
+
   const domesticPresets = AI_MODEL_PRESETS.filter((item) => item.domestic);
   const overseasPresets = AI_MODEL_PRESETS.filter((item) => !item.domestic);
 
   const handleSaveAi = async () => {
     try {
-      await updateAiModel({
-        model: model.trim(),
-        baseUrl: baseUrl.trim(),
-        assistantPrompt: assistantPrompt.trim() || DEFAULT_ASSISTANT_PROMPT,
-      });
+      await persistModelConfig(model, baseUrl);
       flashSaved();
       toast.success("AI 配置已保存");
     } catch (error) {
@@ -91,9 +113,14 @@ export function AiSettingsSection() {
 
     setSavingKey(true);
     try {
+      // Save the key AND the current model/Base URL together, so users who only
+      // click "保存 Key" don't lose their model selection.
       await saveAiApiKey(trimmed);
+      if (isDirty) {
+        await persistModelConfig(model, baseUrl);
+      }
       setApiKey("");
-      toast.success("API Key 已保存");
+      toast.success("API Key 与模型配置已保存");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "API Key 保存失败");
     } finally {
@@ -151,8 +178,22 @@ export function AiSettingsSection() {
           </div>
         ) : (
           <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-primary/8 px-3 py-2.5 text-xs">
+              <span className="font-semibold text-foreground">当前生效：</span>
+              <span className="rounded-md bg-background px-2 py-0.5 font-medium text-primary">
+                {savedPreset ? savedPreset.vendor : savedModel || "未配置"}
+              </span>
+              <span className="text-muted-foreground">{savedModel}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="truncate text-muted-foreground">{savedBaseUrl}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className={settings.aiModel.hasApiKey ? "text-emerald-600" : "text-amber-600"}>
+                {settings.aiModel.hasApiKey ? "已配置 API Key" : "未配置 API Key"}
+              </span>
+            </div>
+
             <div>
-              <label className="settings-label mb-1.5">推荐模型（点击快速填充模型与 Base URL）</label>
+              <label className="settings-label mb-1.5">推荐模型（点击即切换并保存模型与 Base URL）</label>
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-1.5">
                   {domesticPresets.map((preset) => (
@@ -288,12 +329,19 @@ export function AiSettingsSection() {
               </div>
             </div>
 
-            <div className="flex justify-end pt-1">
+            <div className="flex items-center justify-end gap-3 pt-1">
+              {isDirty && !saved && (
+                <span className="text-xs text-amber-600">模型/地址有改动，未保存</span>
+              )}
               <button
                 onClick={() => void handleSaveAi()}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition-all",
-                  saved ? "bg-emerald-500/15 text-emerald-600" : "bg-primary text-primary-foreground hover:opacity-90"
+                  saved
+                    ? "bg-emerald-500/15 text-emerald-600"
+                    : isDirty
+                      ? "bg-primary text-primary-foreground hover:opacity-90"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
                 )}
               >
                 {saved && <Check className="h-3.5 w-3.5" />}
