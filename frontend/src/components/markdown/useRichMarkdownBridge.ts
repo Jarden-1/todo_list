@@ -26,6 +26,19 @@ export function useRichMarkdownBridge({
 }: UseRichMarkdownBridgeOptions) {
   const richEditorRef = useRef<HTMLDivElement>(null);
   const composingRef = useRef(false);
+  // Remember the last caret/selection inside the editor so toolbar buttons
+  // (which steal focus via mousedown) can restore it before running a command.
+  const savedRangeRef = useRef<Range | null>(null);
+
+  const rememberSelection = () => {
+    const editor = richEditorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (editor.contains(range.commonAncestorContainer)) {
+      savedRangeRef.current = range.cloneRange();
+    }
+  };
 
   const emitRichChange = () => {
     const editor = richEditorRef.current;
@@ -51,46 +64,102 @@ export function useRichMarkdownBridge({
     renderRichFromMarkdown(richHtmlToMarkdown(editor), preserveCaret);
   };
 
+  // Focus the editor and guarantee there is a usable caret inside it. Toolbar
+  // buttons fire on mousedown (so the editor never truly loses focus), but on
+  // an empty editor there may be no Range at all — execCommand then silently
+  // no-ops. We restore the remembered selection, or place the caret at the end.
   const focusRichEditor = () => {
     const editor = richEditorRef.current;
     if (!editor) return;
     editor.focus();
 
-    // execCommand needs a live caret inside the editor. If the current
-    // selection is outside (or there is none), place the caret at the end so
-    // toolbar actions (emoji / heading / list) actually take effect instead
-    // of being silently dropped.
     const selection = window.getSelection();
-    const hasCaretInEditor =
-      selection &&
+    if (!selection) return;
+
+    const caretInEditor =
       selection.rangeCount > 0 &&
       editor.contains(selection.getRangeAt(0).commonAncestorContainer);
 
-    if (!hasCaretInEditor) {
-      const range = document.createRange();
-      range.selectNodeContents(editor);
-      range.collapse(false);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+    if (caretInEditor) return;
+
+    // Try to restore a previously saved selection.
+    if (savedRangeRef.current && editor.contains(savedRangeRef.current.commonAncestorContainer)) {
+      selection.removeAllRanges();
+      selection.addRange(savedRangeRef.current);
+      return;
     }
+
+    // Fall back to the end of the editor content.
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
   };
 
   const runRichCommand = (command: string, commandValue?: string) => {
     focusRichEditor();
     document.execCommand(command, false, commandValue);
     emitRichChange();
+    rememberSelection();
   };
 
   const insertRichHtml = (html: string) => {
     focusRichEditor();
-    document.execCommand("insertHTML", false, html);
+    let inserted = false;
+    try {
+      inserted = document.execCommand("insertHTML", false, html);
+    } catch {
+      inserted = false;
+    }
+    // execCommand("insertHTML") can fail on an empty contentEditable in some
+    // browsers — fall back to manual Range insertion so the action always works.
+    if (!inserted) {
+      const selection = window.getSelection();
+      const editor = richEditorRef.current;
+      if (selection && selection.rangeCount > 0 && editor) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const template = document.createElement("template");
+        template.innerHTML = html;
+        const fragment = template.content;
+        const lastNode = fragment.lastChild;
+        range.insertNode(fragment);
+        if (lastNode) {
+          range.setStartAfter(lastNode);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+    }
     emitRichChange();
+    rememberSelection();
   };
 
   const insertRichText = (text: string) => {
     focusRichEditor();
-    document.execCommand("insertText", false, text);
+    let inserted = false;
+    try {
+      inserted = document.execCommand("insertText", false, text);
+    } catch {
+      inserted = false;
+    }
+    if (!inserted) {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const node = document.createTextNode(text);
+        range.insertNode(node);
+        range.setStartAfter(node);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
     emitRichChange();
+    rememberSelection();
   };
 
   useEffect(() => {
@@ -118,6 +187,11 @@ export function useRichMarkdownBridge({
     // every keystroke — re-rendering innerHTML mid-typing is what caused the
     // caret to drift. Normalization happens on blur instead.
     emitRichChange();
+    rememberSelection();
+  };
+
+  const handleSelectionSnapshot = () => {
+    rememberSelection();
   };
 
   const handleBlur = () => {
@@ -143,5 +217,6 @@ export function useRichMarkdownBridge({
     handleBlur,
     handleCompositionStart,
     handleCompositionEnd,
+    handleSelectionSnapshot,
   };
 }

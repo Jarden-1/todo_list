@@ -2,7 +2,21 @@ export const RAW_MARKDOWN_PATTERN =
   /(^|\n)\s{0,3}(#{1,3}\s+\S|[-*+]\s+(?:\[[ xX]\]\s+)?\S|\d+\.\s+\S)|!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|<u>[\s\S]+<\/u>|\*[^*\s][^*]*\*/;
 
 export function escapeMarkdownLabel(label: string) {
-  return label.replace(/[\[\]().]/g, " ").replace(/\s+/g, " ").trim() || "image";
+  // Keep dots so "image.png" stays "image.png"; only neutralize characters
+  // that would break markdown link/label syntax.
+  return label.replace(/[\[\]()]/g, " ").replace(/\s+/g, " ").trim() || "image";
+}
+
+// Resolve an attachment URL to a form the browser can actually load. Stored
+// URLs are relative like "/api/v1/files/<id>/content"; leave absolute URLs and
+// data URIs untouched.
+export function resolveImageSrc(src: string): string {
+  const trimmed = src.trim();
+  if (!trimmed) return trimmed;
+  if (/^(https?:|data:|blob:)/i.test(trimmed)) return trimmed;
+  // Same-origin relative path — return as-is so it works under whatever origin
+  // the app is served from.
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
 export function escapeHtml(value: string) {
@@ -29,7 +43,7 @@ export function renderInlineMarkdown(value: string) {
     html += escapeHtml(value.slice(lastIndex, index));
 
     if (match[1] !== undefined && match[2] !== undefined) {
-      html += `<img src="${escapeAttribute(match[2])}" alt="${escapeAttribute(match[1])}" />`;
+      html += `<img src="${escapeAttribute(resolveImageSrc(match[2]))}" alt="${escapeAttribute(match[1])}" />`;
     } else if (match[3] !== undefined && match[4] !== undefined) {
       html += `<a href="${escapeAttribute(match[4])}">${renderInlineMarkdown(match[3])}</a>`;
     } else if (match[5] !== undefined) {
@@ -133,7 +147,11 @@ function nodeToMarkdown(node: Node): string {
   if (tag === "br") return "\n";
   if (tag === "img") {
     const image = element as HTMLImageElement;
-    return `![${escapeMarkdownLabel(image.alt || "image")}](${image.src})`;
+    // Prefer the original attribute (may be relative) over the resolved
+    // absolute `.src`, so the markdown stays stable across round-trips and
+    // does not bake in the current origin.
+    const src = image.getAttribute("src") || image.src || "";
+    return `![${escapeMarkdownLabel(image.alt || "image")}](${src})`;
   }
   if (tag === "a") {
     const href = (element as HTMLAnchorElement).href || element.getAttribute("href") || "https://";

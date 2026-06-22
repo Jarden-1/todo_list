@@ -151,6 +151,8 @@ export function MarkdownEditor({
           onCompositionEnd={editor.handleCompositionEnd}
           onBeforeInput={editor.handleRichBeforeInput}
           onKeyDown={editor.handleRichKeyDown}
+          onKeyUp={editor.handleRichSelectionSnapshot}
+          onMouseUp={editor.handleRichSelectionSnapshot}
           data-empty={value.trim() ? undefined : "true"}
           style={floatingActionPadding}
           className={cn(

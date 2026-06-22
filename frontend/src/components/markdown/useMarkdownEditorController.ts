@@ -7,7 +7,6 @@ import {
   type RefObject,
 } from "react";
 import { toast } from "sonner";
-import { buildApiUrl } from "../../lib/apiClient";
 import { uploadFile } from "../../lib/filesApi";
 import {
   RAW_MARKDOWN_PATTERN,
@@ -15,6 +14,7 @@ import {
   escapeHtml,
   escapeMarkdownLabel,
   markdownToRichHtml,
+  resolveImageSrc,
 } from "../../lib/markdownRichText";
 import { useRichMarkdownBridge } from "./useRichMarkdownBridge";
 
@@ -111,7 +111,15 @@ export function useMarkdownEditorController({
 
   const applyHeading = (level: HeadingLevel) => {
     if (richEditor) {
-      richBridge.runRichCommand("formatBlock", level === 0 ? "p" : `h${level}`);
+      const editor = richBridge.richEditorRef.current;
+      const isEmpty = !editor || editor.textContent?.trim() === "";
+      if (isEmpty && level > 0) {
+        // formatBlock is unreliable on an empty contentEditable — insert the
+        // heading element directly so the user gets a real <hN> to type into.
+        richBridge.insertRichHtml(`<h${level}>标题</h${level}>`);
+      } else {
+        richBridge.runRichCommand("formatBlock", level === 0 ? "p" : `h${level}`);
+      }
       setHeadingOpen(false);
       return;
     }
@@ -194,15 +202,13 @@ export function useMarkdownEditorController({
       const images = await Promise.all(
         files.map(async (file) => {
           const { file: uploaded } = await uploadFile(file, { todoId, type: "image" });
-          const rawUrl = uploaded.url || `/files/${uploaded.id}/content`;
-          // Resolve to an absolute URL so the <img> still loads after the
-          // markdown <-> HTML round-trip (and regardless of the page path).
-          const url = /^https?:\/\//i.test(rawUrl)
-            ? rawUrl
-            : buildApiUrl(rawUrl.replace(/^\/api\/v1/, ""));
+          // Store the (relative) content URL as returned by the backend. It is
+          // same-origin so it loads under any host; resolveImageSrc normalizes
+          // it consistently both on insert and after the markdown round-trip.
+          const rawUrl = uploaded.url || `/api/v1/files/${uploaded.id}/content`;
           return {
             label: escapeMarkdownLabel(file.name),
-            url,
+            url: resolveImageSrc(rawUrl),
           };
         })
       );
@@ -393,6 +399,7 @@ export function useMarkdownEditorController({
     handleRichBlur: richBridge.handleBlur,
     handleCompositionStart: richBridge.handleCompositionStart,
     handleCompositionEnd: richBridge.handleCompositionEnd,
+    handleRichSelectionSnapshot: richBridge.handleSelectionSnapshot,
     handlePlainKeyDown,
     handleRichKeyDown,
     handleRichBeforeInput,
