@@ -79,6 +79,12 @@
     content: attr(data-placeholder);
     color: var(--muted-foreground);
     pointer-events: none;
+    /* Absolutely positioned so the placeholder never occupies layout space —
+       this keeps the caret aligned to the first line even if a stray empty
+       block briefly remains in the editor. */
+    position: absolute;
+    top: 0;
+    left: 0;
   }
   .markdown-rich-editor:focus {
     outline: none;
@@ -128,6 +134,8 @@
     opacity: 1;
   }
   .markdown-toolbar-responsive {
+    position: relative;
+    z-index: 20;
     display: block;
     align-items: start;
     pointer-events: none;
@@ -156,7 +164,7 @@
   }
   .markdown-toolbar-format-group {
     flex-wrap: nowrap;
-    overflow: hidden;
+    overflow: visible;
     padding-right: 0.25rem;
   }
   .markdown-toolbar-format-item {

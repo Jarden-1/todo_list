@@ -106,7 +106,9 @@ export function MarkdownEditor({
         "markdown-editor-container relative min-w-0",
         (fullscreen || canResizeY) && "flex min-h-0 flex-col",
         fullscreen && "flex-1",
-        canResizeY && "markdown-editor-resizable overflow-hidden",
+        // Keep overflow visible so toolbar dropdowns (emoji / heading) are not
+        // clipped by the resizable editor container.
+        canResizeY && "markdown-editor-resizable",
         hasFloatingActions && "markdown-editor-has-floating-actions",
         className
       )}

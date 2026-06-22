@@ -162,6 +162,29 @@ export function useRichMarkdownBridge({
     rememberSelection();
   };
 
+  const setEmptyRichBlock = (tagName: "p" | "h1" | "h2" | "h3") => {
+    const editor = richEditorRef.current;
+    if (!editor) return;
+
+    const block = document.createElement(tagName);
+    const br = document.createElement("br");
+    block.appendChild(br);
+    editor.replaceChildren(block);
+    editor.focus();
+
+    const selection = window.getSelection();
+    if (selection) {
+      const range = document.createRange();
+      range.setStart(block, 0);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      savedRangeRef.current = range.cloneRange();
+    }
+
+    emitRichChange();
+  };
+
   useEffect(() => {
     if (!enabled) return;
     const editor = richEditorRef.current;
@@ -182,10 +205,36 @@ export function useRichMarkdownBridge({
     requestAnimationFrame(() => richEditorRef.current?.focus());
   }, [autoFocus, enabled]);
 
+  // After deleting all text/images the browser often leaves a stray empty
+  // block (e.g. <p><br></p> or <h1><br></h1>). That residual block occupies a
+  // line and pushes the caret below the placeholder. If the editor is visually
+  // empty, clear it fully so the placeholder and caret line up at the top.
+  const clearIfEmpty = () => {
+    const editor = richEditorRef.current;
+    if (!editor) return false;
+    if (composingRef.current) return false;
+    if ((editor.textContent ?? "").trim() !== "") return false;
+    if (editor.querySelector("img")) return false; // keep real media content
+    if (editor.childNodes.length === 0) return false;
+
+    editor.innerHTML = "";
+    const selection = window.getSelection();
+    if (selection) {
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      savedRangeRef.current = range.cloneRange();
+    }
+    return true;
+  };
+
   const handleInput = () => {
     // Only emit the markdown change here. Do NOT rewrite the editor DOM on
     // every keystroke — re-rendering innerHTML mid-typing is what caused the
     // caret to drift. Normalization happens on blur instead.
+    clearIfEmpty();
     emitRichChange();
     rememberSelection();
   };
@@ -213,6 +262,7 @@ export function useRichMarkdownBridge({
     runRichCommand,
     insertRichHtml,
     insertRichText,
+    setEmptyRichBlock,
     handleInput,
     handleBlur,
     handleCompositionStart,

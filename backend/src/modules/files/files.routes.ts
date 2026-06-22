@@ -137,7 +137,7 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
     const { fileId } = fileIdParamsSchema.parse(request.params);
     const content = await getFileContent(app.prisma, auth.userId, fileId);
 
-    reply
+    return reply
       .header("Content-Type", content.contentType)
       .header("Content-Length", String(content.contentLength))
       .header("Content-Disposition", content.contentDisposition)

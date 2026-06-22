@@ -113,10 +113,12 @@ export function useMarkdownEditorController({
     if (richEditor) {
       const editor = richBridge.richEditorRef.current;
       const isEmpty = !editor || editor.textContent?.trim() === "";
-      if (isEmpty && level > 0) {
-        // formatBlock is unreliable on an empty contentEditable — insert the
-        // heading element directly so the user gets a real <hN> to type into.
-        richBridge.insertRichHtml(`<h${level}>标题</h${level}>`);
+      if (isEmpty) {
+        // formatBlock is unreliable on an empty contentEditable. Create an
+        // empty heading/paragraph block and put the caret inside it; do not
+        // insert visible placeholder words.
+        const tag = level === 0 ? "p" : (`h${level}` as "h1" | "h2" | "h3");
+        richBridge.setEmptyRichBlock(tag);
       } else {
         richBridge.runRichCommand("formatBlock", level === 0 ? "p" : `h${level}`);
       }
