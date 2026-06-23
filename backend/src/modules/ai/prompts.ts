@@ -43,7 +43,7 @@ todos 是数组，每个元素是一个待办对象，字段如下：
   "reminders": [{"remindAt": "ISO 8601", "reason": "提醒原因"}],
   "tags": ["标签名"],
   "subtasks": ["子任务1", "子任务2"],
-  "contentMarkdown": "Markdown 格式的详细内容",
+  "contentMarkdown": "Markdown 格式的正文（必须填写，不能为空字符串，不能只复述标题；需按助手提示词中的正文写作规范撰写，包含任务目标、步骤、注意事项等）",
   "confidence": { "dueAt": "low|medium|high", "priority": "low|medium|high", "projectName": "low|medium|high" },
   "warnings": ["需要注意的解析说明"]
 }
@@ -75,6 +75,7 @@ todos 是数组，每个元素是一个待办对象，字段如下：
 
 # 其他规则
 - title 必须具体、简洁、可执行。
+- contentMarkdown 必须填写且有实质内容：不能为空、不能只复述标题、不能只写一句话。即使是简单任务也至少用一句话说明目标。多步骤任务需用任务列表（- [ ]）拆分步骤。
 - priority 只能是 low、medium、high、urgent；不确定时用 medium。
 - 必须原样保留 [[SMARTTODO_IMAGE_N]] 这类图片占位符，不要删除、改名或移动到无关位置。
 - todos 数组至少包含 1 个元素。`;
