@@ -15,11 +15,15 @@ export function TodoDueNotice({ todo }: TodoDueNoticeProps) {
     primary: "bg-primary/7 border-primary/16 text-primary",
     muted: "bg-muted/35 border-border/35 text-muted-foreground",
   }[dueReminder.tone];
-  // Once the user has set a due date, drop AI's time-related warnings (e.g.
-  // "无明确截止时间") so they don't contradict the live due notice above.
-  const hasDueAt = Boolean(todo.dueAt);
+  // Drop AI's time-related warnings (e.g. "无明确截止时间") whenever the live due
+  // notice above already settles the due-time state, so they never contradict /
+  // duplicate it:
+  //  - the user set a concrete due date (dueAt present), OR
+  //  - the user explicitly chose "无" precision (dueAtPrecision === "none"),
+  //    where the top notice already says "未设置截止时间".
+  const dueResolved = Boolean(todo.dueAt) || todo.dueAtPrecision === "none";
   const visibleAiWarnings = (todo.aiMeta?.warnings ?? []).filter(
-    (warning) => !isStaleDueWarning(warning, hasDueAt)
+    (warning) => !isStaleDueWarning(warning, dueResolved)
   );
 
   return (
