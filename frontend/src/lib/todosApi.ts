@@ -89,6 +89,15 @@ export function deleteTodo(id: string) {
   });
 }
 
+// Permanently (hard) delete multiple todos. Pass { all: true } to clear ALL
+// completed todos, or { ids } for a specific set (single day / multiple days).
+export function bulkDeleteTodos(scope: { all?: boolean; ids?: string[] }) {
+  return apiRequest<{ deletedIds: string[] }>("/todos/bulk-delete", {
+    method: "POST",
+    body: JSON.stringify(scope),
+  });
+}
+
 export function duplicateTodo(id: string) {
   return apiRequest<{ todo: Todo }>(`/todos/${encodeId(id)}/duplicate`, {
     method: "POST",

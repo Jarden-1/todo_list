@@ -168,11 +168,25 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const deleteTodo = useCallback(async (id: string) => {
+    // Hard delete on the server — the returned DTO is the row before deletion
+    // (deletedAt is null), so remove it from the list explicitly rather than
+    // relying on upsertTodo's deletedAt check.
     const { todo } = await todosApi.deleteTodo(id);
-    setTodos((prev) => upsertTodo(prev, todo));
+    setTodos((prev) => prev.filter((item) => item.id !== id));
     setSelectedTodoId((prev) => (prev === id ? null : prev));
     return todo;
   }, []);
+
+  const bulkDeleteTodos = useCallback(
+    async (scope: { all?: boolean; ids?: string[] }) => {
+      const { deletedIds } = await todosApi.bulkDeleteTodos(scope);
+      const removed = new Set(deletedIds);
+      setTodos((prev) => prev.filter((item) => !removed.has(item.id)));
+      setSelectedTodoId((prev) => (prev && removed.has(prev) ? null : prev));
+      return deletedIds;
+    },
+    []
+  );
 
   const restoreTodo = useCallback(async (id: string, status?: TodoStatus) => {
     const { todo } = await todosApi.restoreTodo(id, status);
@@ -295,6 +309,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       addTodo,
       updateTodo,
       deleteTodo,
+      bulkDeleteTodos,
       restoreTodo,
       markReminderSent,
       duplicateTodo,
@@ -319,6 +334,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       addTodoFromAi,
       cancelTodo,
       completeTodo,
+      bulkDeleteTodos,
       currentView,
       deleteSubtask,
       deleteTodo,

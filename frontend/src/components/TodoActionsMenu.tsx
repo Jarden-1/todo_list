@@ -20,6 +20,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
 
 interface TodoActionsMenuProps {
   todo: Todo;
@@ -109,19 +120,11 @@ export function TodoActionsMenu({
 
   const handleDelete = async () => {
     try {
+      // Hard delete — permanent, not recoverable. Confirmation is handled by
+      // the wrapping AlertDialog, so no undo toast here.
       await deleteTodo(todo.id);
       onDeleted?.();
-      toast("待办已删除", {
-        action: {
-          label: "撤销",
-          onClick: () => {
-            void restoreTodo(todo.id, todo.status).then(() => onRestored?.()).catch((error) => {
-              toast.error(error instanceof Error ? error.message : "恢复失败");
-              void refreshWorkspace().catch(() => {});
-            });
-          },
-        },
-      });
+      toast.success("待办已永久删除");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "删除失败");
     }
@@ -172,14 +175,37 @@ export function TodoActionsMenu({
           <Ban className="h-4 w-4" />
           取消待办
         </DropdownMenuItem>
-        <DropdownMenuItem
-          variant="destructive"
-          onSelect={() => void handleDelete()}
-          className="text-red-500/80 focus:bg-red-500/10 focus:text-red-600 dark:text-red-300/80 dark:focus:text-red-200"
-        >
-          <Trash2 className="h-4 w-4" />
-          删除待办
-        </DropdownMenuItem>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <DropdownMenuItem
+              variant="destructive"
+              // Keep the dropdown from closing so the dialog can mount.
+              onSelect={(event) => event.preventDefault()}
+              className="text-red-500/80 focus:bg-red-500/10 focus:text-red-600 dark:text-red-300/80 dark:focus:text-red-200"
+            >
+              <Trash2 className="h-4 w-4" />
+              删除待办
+            </DropdownMenuItem>
+          </AlertDialogTrigger>
+          <AlertDialogContent onClick={stopCardClick}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>永久删除这条待办？</AlertDialogTitle>
+              <AlertDialogDescription>
+                「{todo.title}」将被永久删除，连同其子任务、提醒和附件一并清除，
+                <span className="font-medium text-foreground">无法恢复</span>。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-500/90 text-white hover:bg-red-500"
+                onClick={() => void handleDelete()}
+              >
+                永久删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DropdownMenuContent>
     </DropdownMenu>
   );

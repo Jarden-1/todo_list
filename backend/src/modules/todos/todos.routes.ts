@@ -7,6 +7,7 @@ import { RemindersService } from "./reminders.service";
 import { SubtasksService } from "./subtasks.service";
 import { TodosService } from "./todos.service";
 import {
+  bulkDeleteTodosSchema,
   dismissReminderSchema,
   dueRemindersQuerySchema,
   markReminderSentSchema,
@@ -69,6 +70,15 @@ export async function todosRoutes(app: FastifyInstance): Promise<void> {
     const todo = await todosService.deleteTodo(userId, todoId);
 
     return dataResponse({ todo });
+  });
+
+  // Permanently (hard) delete multiple todos at once. Body: { all } or { ids }.
+  app.post("/todos/bulk-delete", async (request) => {
+    const { userId } = requireAuth(request);
+    const body = bulkDeleteTodosSchema.parse(request.body);
+    const result = await todosService.bulkDeleteTodos(userId, body);
+
+    return dataResponse(result);
   });
 
   app.post("/todos/:todoId/duplicate", async (request, reply) => {

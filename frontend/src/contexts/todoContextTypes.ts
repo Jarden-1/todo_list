@@ -27,6 +27,7 @@ export interface TodoContextValue {
   addTodo: (partial: TodoCreateInput) => Promise<Todo>;
   updateTodo: (id: string, updates: TodoPatchInput) => Promise<Todo>;
   deleteTodo: (id: string) => Promise<Todo>;
+  bulkDeleteTodos: (scope: { all?: boolean; ids?: string[] }) => Promise<string[]>;
   restoreTodo: (id: string, status?: TodoStatus) => Promise<Todo>;
   markReminderSent: (todoId: string, reminderId: string, sentAt?: string) => Promise<void>;
   duplicateTodo: (id: string) => Promise<Todo>;

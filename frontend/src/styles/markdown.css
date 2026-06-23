@@ -172,15 +172,15 @@
   }
   .markdown-toolbar-format-group {
     flex-wrap: nowrap;
-    /* Clip horizontal overflow so trailing format buttons (link/image) never
-       bleed out of the toolbar and collide with the detail-panel header icons
-       when the composer is narrow. overflow-y stays visible so the emoji /
-       heading dropdowns (which open below) are not clipped. */
+    /* Keep dropdowns (emoji / heading, which open below) un-clipped vertically,
+       while clipping horizontally so a stray button can never visually spill
+       under the floating actions. */
     overflow-x: clip;
     overflow-y: visible;
-    /* Reserve room on the right so the format buttons never run under the
-       floating AI / fullscreen actions area. */
-    padding-right: 0.5rem;
+    /* Reserve room on the right for the floating AI / fullscreen cluster
+       (sits at right:0.875rem, ~4.5rem wide) so format buttons never run
+       underneath / collide with it. */
+    padding-right: 5rem;
     max-width: 100%;
   }
   .markdown-toolbar-format-item {
@@ -196,27 +196,35 @@
     gap: 0.25rem;
     padding: 0.125rem;
     border-radius: 0.75rem;
-    background: oklch(from var(--card) l c h / 78%);
+    background: oklch(from var(--card) l c h / 88%);
     box-shadow: 0 0.5rem 1.5rem oklch(0 0 0 / 8%);
     backdrop-filter: blur(10px);
   }
   .markdown-editor-has-floating-actions .markdown-resize-y-handle {
     right: 6rem;
   }
-  @container (max-width: 620px) {
+  /* Progressive hiding of secondary format buttons as the editor narrows.
+     Priority of removal (first to go): image -> link -> strikethrough/underline
+     -> ordered/task list -> heading -> unordered list. Core actions (emoji /
+     bold / italic) always stay. Thresholds are generous so icons disappear
+     BEFORE they can ever reach the floating AI/fullscreen cluster. */
+  @container (max-width: 560px) {
     .markdown-toolbar-responsive .md-toolbar-hide-6 { display: none; }
   }
-  @container (max-width: 560px) {
+  @container (max-width: 520px) {
     .markdown-toolbar-responsive .md-toolbar-hide-5 { display: none; }
   }
-  @container (max-width: 500px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-2 { display: none; }
-  }
-  @container (max-width: 460px) {
+  @container (max-width: 480px) {
     .markdown-toolbar-responsive .md-toolbar-hide-1 { display: none; }
   }
-  @container (max-width: 420px) {
+  @container (max-width: 440px) {
+    .markdown-toolbar-responsive .md-toolbar-hide-2 { display: none; }
+  }
+  @container (max-width: 400px) {
     .markdown-toolbar-responsive .md-toolbar-hide-4 { display: none; }
+  }
+  @container (max-width: 360px) {
+    .markdown-toolbar-responsive .md-toolbar-hide-3 { display: none; }
   }
   @container (max-width: 380px) {
     .markdown-toolbar-responsive .md-toolbar-hide-3 { display: none; }

@@ -26,6 +26,18 @@ export const todoIdParamsSchema = z.object({
   todoId: idString
 });
 
+export const bulkDeleteTodosSchema = z
+  .object({
+    // When true, delete ALL completed todos (ignores ids).
+    all: z.boolean().optional(),
+    // Explicit ids to permanently delete (single / per-day / multi-day).
+    ids: z.array(idString).max(2000).optional()
+  })
+  .strict()
+  .refine((value) => value.all === true || (value.ids?.length ?? 0) > 0, {
+    message: "必须提供 all=true 或非空的 ids"
+  });
+
 export const subtaskIdParamsSchema = todoIdParamsSchema.extend({
   subtaskId: idString
 });

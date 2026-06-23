@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { ApiError } from "../../common/apiError";
-import { getSoftDeleteTimestamps } from "../../common/softDelete";
+import { removeLocalFileIfExists } from "../files/localDiskStorage";
 import { createEntityId } from "./ids";
 import { parseMarkdownTasks, replaceMarkdownTaskList } from "./markdownTasks";
 import {
@@ -315,37 +315,93 @@ export class TodosService {
   }
 
   async deleteTodo(userId: string, todoId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      await this.findTodo(tx, userId, todoId);
-      const timestamps = getSoftDeleteTimestamps();
-
-      await tx.todo.updateMany({
-        where: {
-          id: todoId,
-          userId,
-          deletedAt: null
-        },
-        data: {
-          deletedAt: timestamps.deletedAt,
-          purgeAfter: timestamps.purgeAfter,
-          updatedAt: timestamps.deletedAt
-        }
-      });
-
-      const todo = await tx.todo.findFirst({
-        where: {
-          id: todoId,
-          userId
-        },
-        include: todoInclude
-      });
-
-      if (!todo) {
-        throw new ApiError("NOT_FOUND", "待办不存在", 404);
-      }
-
-      return toTodoDto(todo);
+    const todo = await this.prisma.todo.findFirst({
+      where: { id: todoId, userId },
+      include: todoInclude
     });
+
+    if (!todo) {
+      throw new ApiError("NOT_FOUND", "待办不存在", 404);
+    }
+
+    const dto = toTodoDto(todo);
+    // Hard delete: physically remove the row + all its relations + disk files,
+    // so nothing lingers in the database or the uploads folder. Not recoverable.
+    await this.hardDeleteTodos(userId, [todoId]);
+    return dto;
+  }
+
+  /**
+   * Permanently delete todos. Supports two scopes:
+   *  - all=true: delete ALL of the user's completed (status=done) todos
+   *  - ids:      delete exactly these todo ids (used for single-day or
+   *              multi-day deletion — the client sends the ids it grouped on
+   *              screen, which avoids any server-side timezone ambiguity)
+   * Returns the deleted todo ids.
+   */
+  async bulkDeleteTodos(
+    userId: string,
+    scope: { ids?: string[]; all?: boolean }
+  ): Promise<{ deletedIds: string[] }> {
+    let ids: string[] = [];
+
+    if (scope.all) {
+      const rows = await this.prisma.todo.findMany({
+        where: { userId, status: "done", deletedAt: null },
+        select: { id: true }
+      });
+      ids = rows.map((row) => row.id);
+    } else if (scope.ids && scope.ids.length > 0) {
+      const rows = await this.prisma.todo.findMany({
+        where: { userId, id: { in: uniqueIds(scope.ids) } },
+        select: { id: true }
+      });
+      ids = rows.map((row) => row.id);
+    }
+
+    if (ids.length === 0) {
+      return { deletedIds: [] };
+    }
+
+    await this.hardDeleteTodos(userId, ids);
+    return { deletedIds: ids };
+  }
+
+  /**
+   * Physically delete the given todos (scoped to the user) along with their
+   * subtasks / reminders / todoTags / undoRecords / notificationEvents and any
+   * local attachment files on disk. Mirrors the purge worker's logic.
+   */
+  private async hardDeleteTodos(userId: string, todoIds: string[]): Promise<void> {
+    const ids = uniqueIds(todoIds);
+    if (ids.length === 0) return;
+
+    // Collect local attachment files to remove from disk after the DB tx.
+    const attachments = await this.prisma.attachment.findMany({
+      where: { userId, todoId: { in: ids } },
+      select: { storageProvider: true, storageKey: true }
+    });
+    const localStorageKeys = attachments
+      .filter((attachment) => attachment.storageProvider === "local")
+      .map((attachment) => attachment.storageKey);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.notificationEvent.deleteMany({ where: { userId, todoId: { in: ids } } });
+      await tx.todoTag.deleteMany({ where: { userId, todoId: { in: ids } } });
+      await tx.subtask.deleteMany({ where: { userId, todoId: { in: ids } } });
+      await tx.reminder.deleteMany({ where: { userId, todoId: { in: ids } } });
+      await tx.attachment.deleteMany({ where: { userId, todoId: { in: ids } } });
+      await tx.undoRecord.deleteMany({ where: { userId, todoId: { in: ids } } });
+      await tx.todo.deleteMany({ where: { userId, id: { in: ids } } });
+    });
+
+    for (const storageKey of localStorageKeys) {
+      try {
+        await removeLocalFileIfExists(storageKey);
+      } catch {
+        // Best-effort disk cleanup; DB rows are already gone.
+      }
+    }
   }
 
   async duplicateTodo(userId: string, todoId: string) {
