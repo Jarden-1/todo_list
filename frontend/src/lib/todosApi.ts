@@ -98,6 +98,13 @@ export function bulkDeleteTodos(scope: { all?: boolean; ids?: string[] }) {
   });
 }
 
+export function bulkMoveTodos(ids: string[], projectId: string | null) {
+  return apiRequest<{ todos: Todo[] }>("/todos/bulk-move", {
+    method: "POST",
+    body: JSON.stringify({ ids, projectId }),
+  });
+}
+
 export function duplicateTodo(id: string) {
   return apiRequest<{ todo: Todo }>(`/todos/${encodeId(id)}/duplicate`, {
     method: "POST",

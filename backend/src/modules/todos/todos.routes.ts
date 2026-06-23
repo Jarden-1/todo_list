@@ -8,6 +8,7 @@ import { SubtasksService } from "./subtasks.service";
 import { TodosService } from "./todos.service";
 import {
   bulkDeleteTodosSchema,
+  bulkMoveTodosSchema,
   dismissReminderSchema,
   dueRemindersQuerySchema,
   markReminderSentSchema,
@@ -77,6 +78,14 @@ export async function todosRoutes(app: FastifyInstance): Promise<void> {
     const { userId } = requireAuth(request);
     const body = bulkDeleteTodosSchema.parse(request.body);
     const result = await todosService.bulkDeleteTodos(userId, body);
+
+    return dataResponse(result);
+  });
+
+  app.post("/todos/bulk-move", async (request) => {
+    const { userId } = requireAuth(request);
+    const body = bulkMoveTodosSchema.parse(request.body);
+    const result = await todosService.bulkMoveTodos(userId, body);
 
     return dataResponse(result);
   });

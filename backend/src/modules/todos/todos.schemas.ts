@@ -38,6 +38,13 @@ export const bulkDeleteTodosSchema = z
     message: "必须提供 all=true 或非空的 ids"
   });
 
+export const bulkMoveTodosSchema = z
+  .object({
+    ids: z.array(idString).min(1, "至少选择一条待办").max(2000),
+    projectId: idString.nullable()
+  })
+  .strict();
+
 export const subtaskIdParamsSchema = todoIdParamsSchema.extend({
   subtaskId: idString
 });
@@ -182,6 +189,7 @@ export type ProjectCreateInput = z.infer<typeof projectCreateSchema>;
 export type ProjectPatchInput = z.infer<typeof projectPatchSchema>;
 export type TagCreateInput = z.infer<typeof tagCreateSchema>;
 export type TagPatchInput = z.infer<typeof tagPatchSchema>;
+export type BulkMoveTodosInput = z.infer<typeof bulkMoveTodosSchema>;
 export type TodoCreateInput = z.infer<typeof todoCreateSchema>;
 export type TodoPatchInput = z.infer<typeof todoPatchSchema>;
 export type TodosQueryInput = z.infer<typeof todosQuerySchema>;

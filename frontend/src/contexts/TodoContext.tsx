@@ -188,6 +188,12 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const bulkMoveTodos = useCallback(async (ids: string[], projectId: string | null) => {
+    const { todos: movedTodos } = await todosApi.bulkMoveTodos(ids, projectId);
+    setTodos((prev) => movedTodos.reduce((list, todo) => upsertTodo(list, todo), prev));
+    return movedTodos;
+  }, []);
+
   const restoreTodo = useCallback(async (id: string, status?: TodoStatus) => {
     const { todo } = await todosApi.restoreTodo(id, status);
     setTodos((prev) => upsertTodo(prev, todo));
@@ -310,6 +316,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       updateTodo,
       deleteTodo,
       bulkDeleteTodos,
+      bulkMoveTodos,
       restoreTodo,
       markReminderSent,
       duplicateTodo,
@@ -335,6 +342,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       cancelTodo,
       completeTodo,
       bulkDeleteTodos,
+      bulkMoveTodos,
       currentView,
       deleteSubtask,
       deleteTodo,

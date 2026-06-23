@@ -3,10 +3,11 @@ import {
   Copy,
   CopyPlus,
   FileText,
+  FolderInput,
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
-import type { SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import { toast } from "sonner";
 import type { Todo } from "../lib/types";
 import { useTodo } from "../contexts/TodoContext";
@@ -20,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { TodoProjectMoveDialog } from "./TodoProjectMoveDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +67,7 @@ export function TodoActionsMenu({
     duplicateTodo,
     refreshWorkspace,
   } = useTodo();
+  const [moveOpen, setMoveOpen] = useState(false);
   const project = getProjectById(todo.projectId);
 
   const copyText = async (format: "plain" | "markdown") => {
@@ -131,6 +134,7 @@ export function TodoActionsMenu({
   };
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -165,6 +169,10 @@ export function TodoActionsMenu({
         <DropdownMenuItem onSelect={() => void handleDuplicate()}>
           <CopyPlus className="h-4 w-4" />
           复制一份
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setMoveOpen(true)}>
+          <FolderInput className="h-4 w-4" />
+          移动到项目
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-border/55" />
         <DropdownMenuItem
@@ -208,5 +216,11 @@ export function TodoActionsMenu({
         </AlertDialog>
       </DropdownMenuContent>
     </DropdownMenu>
+    <TodoProjectMoveDialog
+      open={moveOpen}
+      onOpenChange={setMoveOpen}
+      todoIds={[todo.id]}
+    />
+    </>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { replaceActiveSubtasksFromMarkdown } from "./subtasks.service";
 import { todoInclude, toTodoDto, type TodoWithRelations } from "./todo.dto";
 import type {
+  BulkMoveTodosInput,
   ReminderInput,
   SubtaskInput,
   TodoCreateInput,
@@ -365,6 +366,59 @@ export class TodosService {
 
     await this.hardDeleteTodos(userId, ids);
     return { deletedIds: ids };
+  }
+
+  async bulkMoveTodos(userId: string, input: BulkMoveTodosInput) {
+    const requestedIds = uniqueIds(input.ids);
+    if (requestedIds.length === 0) {
+      return { todos: [] };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.assertProjectExists(tx, userId, input.projectId);
+
+      const existingRows = await tx.todo.findMany({
+        where: {
+          userId,
+          id: { in: requestedIds },
+          deletedAt: null
+        },
+        select: { id: true }
+      });
+      const existingIds = existingRows.map((row) => row.id);
+
+      if (existingIds.length === 0) {
+        return { todos: [] };
+      }
+
+      await tx.todo.updateMany({
+        where: {
+          userId,
+          id: { in: existingIds },
+          deletedAt: null
+        },
+        data: {
+          projectId: input.projectId ?? null,
+          updatedAt: new Date()
+        }
+      });
+
+      const todos = await tx.todo.findMany({
+        where: {
+          userId,
+          id: { in: existingIds },
+          deletedAt: null
+        },
+        include: todoInclude
+      });
+      const todoById = new Map(todos.map((todo) => [todo.id, toTodoDto(todo)]));
+
+      return {
+        todos: existingIds
+          .map((id) => todoById.get(id))
+          .filter((todo): todo is ReturnType<typeof toTodoDto> => Boolean(todo))
+      };
+    });
   }
 
   /**
