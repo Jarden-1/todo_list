@@ -17,9 +17,7 @@ import {
   resolveImageSrc,
 } from "../../lib/markdownRichText";
 import { useRichMarkdownBridge } from "./useRichMarkdownBridge";
-
-type InlineCommand = "bold" | "italic" | "underline" | "strikeThrough";
-type HeadingLevel = 0 | 1 | 2 | 3;
+import type { HeadingLevel, InlineCommand } from "./markdownToolbarTypes";
 
 interface UseMarkdownEditorControllerOptions {
   value: string;

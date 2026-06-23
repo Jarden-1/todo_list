@@ -120,31 +120,3 @@ export function endOfWeekIso(base: Date = new Date()): string {
   d.setHours(23, 59, 0, 0);
   return d.toISOString();
 }
-
-export function getDefaultDueTime(input: string): string | undefined {
-  const now = new Date();
-  const lower = input.toLowerCase();
-
-  // Today patterns
-  if (lower.includes("今天") || lower.includes("今日")) {
-    const d = new Date(now);
-    d.setHours(18, 0, 0, 0);
-    return d.toISOString();
-  }
-  if (lower.includes("明天") || lower.includes("明日")) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + 1);
-    d.setHours(18, 0, 0, 0);
-    return d.toISOString();
-  }
-  // This week
-  if (lower.includes("本周") || lower.includes("这周") || lower.includes("周五前")) {
-    const d = new Date(now);
-    const day = d.getDay();
-    const daysUntilFriday = (5 - day + 7) % 7 || 7;
-    d.setDate(d.getDate() + daysUntilFriday);
-    d.setHours(18, 0, 0, 0);
-    return d.toISOString();
-  }
-  return undefined;
-}

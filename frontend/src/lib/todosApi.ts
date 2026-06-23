@@ -51,6 +51,12 @@ function normalizeTodoPatch(patch: TodoPatchInput): TodoPatchInput {
   if ("dueAt" in normalized && normalized.dueAt === undefined) {
     normalized.dueAt = null;
   }
+  // Keep dueAt and dueAtPrecision consistent: clearing the date means there is
+  // no precision either, so the backend never ends up with a null date paired
+  // with a stale "day"/"week" precision.
+  if ("dueAt" in normalized && normalized.dueAt === null) {
+    normalized.dueAtPrecision = "none";
+  }
   if ("assignee" in normalized && normalized.assignee === undefined) {
     normalized.assignee = null;
   }

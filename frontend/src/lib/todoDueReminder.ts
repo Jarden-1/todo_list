@@ -1,4 +1,4 @@
-import { formatDateTime, isOverdue, isTodayDate } from "./dateUtils";
+import { formatDueDate, isOverdue, isTodayDate } from "./dateUtils";
 import type { Todo } from "./types";
 
 export function toDatetimeLocalValue(value?: string | null) {
@@ -30,12 +30,18 @@ export function getDueReminder(todo: Todo) {
     };
   }
 
-  const dueText = formatDateTime(todo.dueAt);
+  // Respect dueAtPrecision so day/week todos don't leak the 23:59 placeholder.
+  const precision = todo.dueAtPrecision ?? "datetime";
+  const dueText = formatDueDate(todo.dueAt, precision);
+  // For day/week precision dueText already reads as a phrase ("今天截止" /
+  // "本周内"), so don't prefix it again; only the exact-time variant needs a
+  // descriptive prefix.
+  const exact = precision === "datetime";
 
   if (!inactive && isOverdue(todo.dueAt)) {
     return {
       tone: "danger" as const,
-      title: `已逾期 · ${dueText}`,
+      title: exact ? `已逾期 · ${dueText}` : `已逾期（${dueText}）`,
       description: "可以在截止时间区域快速延期或重新选择时间。",
     };
   }
@@ -43,20 +49,20 @@ export function getDueReminder(todo: Todo) {
   if (!inactive && isTodayDate(todo.dueAt)) {
     return {
       tone: "warning" as const,
-      title: `今天截止 · ${dueText}`,
+      title: exact ? `今天截止 · ${dueText}` : dueText,
     };
   }
 
   if (inactive) {
     return {
       tone: "muted" as const,
-      title: `截止时间 · ${dueText}`,
+      title: exact ? `截止时间 · ${dueText}` : dueText,
     };
   }
 
   return {
     tone: "primary" as const,
-    title: `截止时间提醒 · ${dueText}`,
+    title: exact ? `截止时间提醒 · ${dueText}` : `截止 · ${dueText}`,
   };
 }
 

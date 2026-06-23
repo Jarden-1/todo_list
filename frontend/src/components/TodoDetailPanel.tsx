@@ -163,9 +163,20 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
     const base = todo.dueAt ? new Date(todo.dueAt) : new Date();
     const newDate = new Date(base);
     newDate.setDate(newDate.getDate() + days);
-    newDate.setHours(18, 0, 0, 0);
+    // Quick-postpone is a day-level action (明天/下周/两周后). Keep the original
+    // precision when it was exact; otherwise treat it as day precision (23:59
+    // placeholder) so dueAt and dueAtPrecision stay consistent.
+    const keepExact = (todo.dueAtPrecision ?? "datetime") === "datetime";
+    if (keepExact) {
+      newDate.setHours(base.getHours(), base.getMinutes(), 0, 0);
+    } else {
+      newDate.setHours(23, 59, 0, 0);
+    }
     try {
-      await updateTodo(todo.id, { dueAt: newDate.toISOString() });
+      await updateTodo(todo.id, {
+        dueAt: newDate.toISOString(),
+        dueAtPrecision: keepExact ? "datetime" : "day",
+      });
       toast.success(`已延期至 ${newDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "延期失败");
