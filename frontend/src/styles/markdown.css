@@ -143,8 +143,13 @@
        are rendered as a SIBLING in MarkdownEditor and positioned at the editor
        container's bottom-right, so this row must stay block-level (not a flex
        row that would pull the actions up to the top). */
-    z-index: 20;
+    z-index: 10;
     display: block;
+    /* Reserve the top-right corner so this row never overlaps the composer's
+       mode-switch buttons (智能编辑 / 手动添加, positioned at right-4 top-4).
+       Without this the format group's box stretched full width and swallowed
+       clicks meant for the mode-switch buttons. */
+    padding-right: 4rem;
   }
   .markdown-toolbar-embedded {
     position: relative;
@@ -164,12 +169,13 @@
     gap: 0.125rem;
     flex-wrap: nowrap;
     /* Clip horizontally so trailing buttons never bleed past the row width;
-       keep vertical overflow visible so emoji / heading dropdowns aren't cut.
-       Reserve room on the right for the floating actions cluster so format
-       buttons never sit under it. */
+       keep vertical overflow visible so emoji / heading dropdowns aren't cut. */
     overflow-x: clip;
     overflow-y: visible;
-    padding-right: 4.5rem;
+    /* Box only as wide as its buttons (capped to the row) so the empty space to
+       its right does NOT swallow clicks meant for the absolutely-positioned
+       mode-switch / floating-action buttons sitting in that area. */
+    width: fit-content;
     max-width: 100%;
   }
   .markdown-toolbar-format-item {
