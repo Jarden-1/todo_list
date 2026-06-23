@@ -140,19 +140,29 @@ export function useMarkdownEditorController({
 
   const applyList = (ordered: boolean) => {
     if (richEditor) {
-      // Prefer the browser's native list command so the caret lands inside an
-      // empty <li> ready for typing. Only fall back to building HTML from a
-      // multi-line selection. Never inject placeholder text like "列表项".
+      const tag = ordered ? "ol" : "ul";
       const selectedText = window.getSelection()?.toString() ?? "";
-      if (!selectedText.includes("\n")) {
-        richBridge.runRichCommand(ordered ? "insertOrderedList" : "insertUnorderedList");
+
+      // Multi-line selection -> build a list from the lines.
+      if (selectedText.includes("\n")) {
+        const items = selectedText
+          .split(/\n+/)
+          .map((item) => `<li>${escapeHtml(item.trim())}</li>`);
+        richBridge.insertRichHtml(`<${tag}>${items.join("")}</${tag}>`);
         return;
       }
-      const items = selectedText
-        .split(/\n+/)
-        .map((item) => `<li>${escapeHtml(item.trim())}</li>`);
-      const tag = ordered ? "ol" : "ul";
-      richBridge.insertRichHtml(`<${tag}>${items.join("")}</${tag}>`);
+
+      // Try the native command first (toggles list on the current block and
+      // lands the caret inside an <li>). On a truly empty editor this silently
+      // no-ops in Chrome, so detect failure and fall back to inserting a list
+      // with one empty <li> via the robust insertRichHtml (manual-Range
+      // fallback included) so the button always works.
+      const beforeHtml = richBridge.getRichHtml();
+      richBridge.runRichCommand(ordered ? "insertOrderedList" : "insertUnorderedList");
+      const afterHtml = richBridge.getRichHtml();
+      if (afterHtml === beforeHtml) {
+        richBridge.insertRichHtml(`<${tag}><li></li></${tag}>`);
+      }
       return;
     }
 

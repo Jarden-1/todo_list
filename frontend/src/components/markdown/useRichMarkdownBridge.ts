@@ -292,12 +292,18 @@ export function useRichMarkdownBridge({
     handleInput();
   };
 
+  // Snapshot of the current editor innerHTML — used to detect whether a native
+  // execCommand actually changed anything (e.g. insertOrderedList no-ops on an
+  // empty editor).
+  const getRichHtml = () => richEditorRef.current?.innerHTML ?? "";
+
   return {
     richEditorRef,
     runRichCommand,
     insertRichHtml,
     insertRichText,
     setEmptyRichBlock,
+    getRichHtml,
     handleInput,
     handleBlur,
     handleFocus,
