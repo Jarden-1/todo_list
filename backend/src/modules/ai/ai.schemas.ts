@@ -47,6 +47,13 @@ export const aiTodoResultSchema = z
   })
   .strict();
 
+// The model is asked to return { todos: [...] }. We accept 1..N todos.
+export const aiTodoResultListSchema = z
+  .object({
+    todos: z.array(aiTodoResultSchema).min(1).max(20)
+  })
+  .strict();
+
 export const undoParamsSchema = z
   .object({
     undoId: z.string().trim().min(1).max(200)
@@ -58,4 +65,5 @@ export type TodoOrganizationRequest = z.infer<
 >;
 export type MarkdownPolishRequest = z.infer<typeof markdownPolishRequestSchema>;
 export type AiTodoResult = z.infer<typeof aiTodoResultSchema>;
+export type AiTodoResultList = z.infer<typeof aiTodoResultListSchema>;
 export type UndoParams = z.infer<typeof undoParamsSchema>;

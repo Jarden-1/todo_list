@@ -134,14 +134,29 @@ function parseJsonObject(content: string): unknown {
   try {
     return JSON.parse(withoutFence);
   } catch {
-    const start = withoutFence.indexOf("{");
-    const end = withoutFence.lastIndexOf("}");
+    // Try to salvage the outermost JSON value — object {...} or array [...].
+    const objStart = withoutFence.indexOf("{");
+    const objEnd = withoutFence.lastIndexOf("}");
+    const arrStart = withoutFence.indexOf("[");
+    const arrEnd = withoutFence.lastIndexOf("]");
 
-    if (start >= 0 && end > start) {
+    const candidates: string[] = [];
+    // Prefer whichever bracket appears first as the outer container.
+    if (arrStart >= 0 && (objStart < 0 || arrStart < objStart) && arrEnd > arrStart) {
+      candidates.push(withoutFence.slice(arrStart, arrEnd + 1));
+    }
+    if (objStart >= 0 && objEnd > objStart) {
+      candidates.push(withoutFence.slice(objStart, objEnd + 1));
+    }
+    if (arrStart >= 0 && arrEnd > arrStart) {
+      candidates.push(withoutFence.slice(arrStart, arrEnd + 1));
+    }
+
+    for (const candidate of candidates) {
       try {
-        return JSON.parse(withoutFence.slice(start, end + 1));
+        return JSON.parse(candidate);
       } catch {
-        throw aiModuleError("AI_RESULT_INVALID", "AI 返回内容不是有效 JSON", 422);
+        // try next candidate
       }
     }
 
@@ -149,15 +164,21 @@ function parseJsonObject(content: string): unknown {
   }
 }
 
-export function parseAiTodoResult(content: string, originalInput: string): AiTodoResult {
-  const parsed = looseAiTodoResultSchema.safeParse(parseJsonObject(content));
+type ImagePlaceholderList = ReturnType<
+  typeof replaceImagesWithPlaceholders
+>["placeholders"];
 
+function normalizeSingleTodo(
+  raw: unknown,
+  placeholders: ImagePlaceholderList,
+  originalInput: string
+): AiTodoResult | null {
+  const parsed = looseAiTodoResultSchema.safeParse(raw);
   if (!parsed.success) {
-    throw aiModuleError("AI_RESULT_INVALID", "AI 返回结构不正确", 422);
+    return null;
   }
 
   const contentMarkdown = cleanString(parsed.data.contentMarkdown, 1024 * 1024) ?? "";
-  const { placeholders } = replaceImagesWithPlaceholders(originalInput);
   const restoredContentMarkdown = restoreImagePlaceholders(contentMarkdown, placeholders);
 
   const normalized = {
@@ -174,10 +195,57 @@ export function parseAiTodoResult(content: string, originalInput: string): AiTod
   };
 
   const result = aiTodoResultSchema.safeParse(normalized);
+  return result.success ? result.data : null;
+}
 
-  if (!result.success) {
+export function parseAiTodoResult(content: string, originalInput: string): AiTodoResult {
+  const { placeholders } = replaceImagesWithPlaceholders(originalInput);
+  const result = normalizeSingleTodo(parseJsonObject(content), placeholders, originalInput);
+
+  if (!result) {
     throw aiModuleError("AI_RESULT_INVALID", "AI 返回结构不正确", 422);
   }
 
-  return result.data;
+  return result;
+}
+
+// Accepts { todos: [...] }, a bare array, or a single todo object (backward
+// compatible). Returns at least one normalized todo, or throws.
+export function parseAiTodoResultList(
+  content: string,
+  originalInput: string
+): AiTodoResult[] {
+  const { placeholders } = replaceImagesWithPlaceholders(originalInput);
+  const root = parseJsonObject(content);
+
+  let rawTodos: unknown[];
+  if (Array.isArray(root)) {
+    rawTodos = root;
+  } else if (
+    root &&
+    typeof root === "object" &&
+    Array.isArray((root as Record<string, unknown>).todos)
+  ) {
+    rawTodos = (root as Record<string, unknown>).todos as unknown[];
+  } else {
+    // Backward compat: model returned a single todo object.
+    rawTodos = [root];
+  }
+
+  const todos: AiTodoResult[] = [];
+  for (const raw of rawTodos) {
+    const normalized = normalizeSingleTodo(raw, placeholders, originalInput);
+    if (normalized) {
+      todos.push(normalized);
+    }
+    if (todos.length >= 20) {
+      break;
+    }
+  }
+
+  if (todos.length === 0) {
+    throw aiModuleError("AI_RESULT_INVALID", "AI 返回结构不正确", 422);
+  }
+
+  return todos;
 }

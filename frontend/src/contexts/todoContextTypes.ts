@@ -40,7 +40,7 @@ export interface TodoContextValue {
   getTagById: (id: string) => Tag | undefined;
   addTag: (name: string, color?: string) => Promise<Tag>;
 
-  addTodoFromAi: (input: string) => Promise<Todo>;
+  addTodoFromAi: (input: string) => Promise<Todo[]>;
   undoLastAiCreate: () => Promise<string | null>;
 
   toggleSubtask: (todoId: string, subtaskId: string) => Promise<Todo>;

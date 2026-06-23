@@ -83,18 +83,34 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
 
     setAiLoading(true);
     try {
-      const todo = await addTodoFromAi(input);
+      const todos = await addTodoFromAi(input);
+      if (todos.length === 0) return;
+      const firstTodo = todos[0];
       setInput("");
       setExpanded(false);
       setFullscreen(false);
-      onTodoCreated?.(todo.id);
+      onTodoCreated?.(firstTodo.id);
+
+      const summary =
+        todos.length === 1
+          ? `已创建：${firstTodo.title}`
+          : `已按时间拆分为 ${todos.length} 条待办`;
 
       toast.custom(
         (t) => (
           <div className="flex min-w-[300px] items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-2xl">
             <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">已创建：{todo.title}</p>
+              <p className="text-sm font-medium text-foreground">{summary}</p>
+              {todos.length > 1 && (
+                <ul className="mt-1 space-y-0.5">
+                  {todos.map((item) => (
+                    <li key={item.id} className="truncate text-xs text-muted-foreground">
+                      · {item.title}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <button
               type="button"

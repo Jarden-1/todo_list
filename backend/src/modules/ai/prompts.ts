@@ -23,7 +23,7 @@ export function buildTodoOrganizationSystemPrompt(
 ): string {
   return `${context.assistantPrompt}
 
-用户会给你一段自然语言描述，你需要将其整理成结构化的待办事项。
+用户会给你一段自然语言描述。你需要判断它包含一个还是多个待办，并整理成结构化数据。
 
 当前时间 ISO：${context.nowIso}
 当前时间（用户时区）：${context.nowLocalText}
@@ -31,33 +31,45 @@ export function buildTodoOrganizationSystemPrompt(
 已有项目：${joinNames(context.projectNames)}
 已有标签：${joinNames(context.tagNames)}
 
-请只返回 JSON 对象，不要返回 Markdown 代码块或任何解释。JSON 字段如下：
+# 输出格式（最重要）
+只返回一个 JSON 对象，顶层必须是 { "todos": [ ... ] }，不要返回 Markdown 代码块、不要任何解释文字。
+todos 是数组，每个元素是一个待办对象，字段如下：
 {
   "title": "简洁的待办标题",
-  "projectName": "项目名称（如果能识别到，否则不填）",
+  "projectName": "项目名称（识别到则填，否则不填）",
   "priority": "low|medium|high|urgent",
-  "dueAt": "ISO 8601 格式的截止时间（如果能识别到，否则不填）",
+  "dueAt": "ISO 8601 格式的截止时间（识别到则填，否则不填）",
   "reminders": [{"remindAt": "ISO 8601", "reason": "提醒原因"}],
   "tags": ["标签名"],
   "subtasks": ["子任务1", "子任务2"],
-  "contentMarkdown": "Markdown 格式的详细内容，包含目标、子任务列表、注意事项等",
-  "confidence": {
-    "dueAt": "low|medium|high",
-    "priority": "low|medium|high",
-    "projectName": "low|medium|high"
-  },
+  "contentMarkdown": "Markdown 格式的详细内容",
+  "confidence": { "dueAt": "low|medium|high", "priority": "low|medium|high", "projectName": "low|medium|high" },
   "warnings": ["需要注意的解析说明"]
 }
 
-规则：
-- 标题必须具体、简洁、可执行。
+# 拆分规则（按时间分组，非常重要）
+- 判断依据是【截止时间】：把截止时间相同（或都没有时间）的动作合并为同一条待办，多个动作作为该待办的 subtasks。
+- 当用户描述了【不同截止时间】的多件事时，按时间拆成多条独立待办，每条各自带自己的 dueAt。
+- 只在时间明显不同、或明显是并列的独立任务时才拆分；不要因为一句话里出现多个动词就过度拆分。
+- 如果整段只是同一时间点要做的若干步骤，就只产出 1 条待办，步骤放进 subtasks。
+- 示例："今天中午前交周报，下午3点开评审会，明天上午联系供应商" → 拆成 3 条：周报(今天12:00)、评审会(今天15:00)、联系供应商(明天09:00)。
+- 示例："今天下午把方案写完并发给老板" → 1 条待办，dueAt=今天15:00，subtasks=["写完方案","发给老板"]。
+
+# 时间解析规则（按用户时区，输出完整 ISO 8601）
+- 相对日期："今天"=当天；"明天"=次日；"后天"=第三天；"周五前"/"本周五"=本周五；"下周一"=下周一；"月底"=本月最后一天。
+- 口语时刻："中午"/"午饭前"=12:00；"上午"=09:00；"下午"=15:00；"傍晚"=18:00；"晚上"/"今晚"=20:00；"早上"=08:00。
+- 仅给日期未给时刻时，默认 18:00；用户给了具体时刻（如"下午3点"、"15:30"）以用户为准。
+- 完全没提时间则省略 dueAt，并把 confidence.dueAt 设为 "low"。
+
+# 项目与标签
+- 从输入识别项目归属（如"X项目的…"、"给X模块…"、"关于X的"），填入对应待办的 projectName；不同待办可属于不同项目。
+- 优先复用上面"已有项目/已有标签"中的名称（大小写、空格不敏感）；只有用户明显提到新项目/新标签时才返回新名称。
+
+# 其他规则
+- title 必须具体、简洁、可执行。
 - priority 只能是 low、medium、high、urgent；不确定时用 medium。
-- 所有时间都必须按用户时区理解，并输出完整 ISO 8601 字符串。
-- "今天" 默认当天 18:00；"明天" 默认次日 18:00；"周五前" 默认本周五 18:00。
-- "上午" 默认 09:00；"下午" 默认 15:00；"晚上" 默认 20:00。
-- 如果不确定截止时间，请省略 dueAt，并把 confidence.dueAt 设为 "low"。
-- 优先复用已有项目和标签名称，只有用户明显说出新项目或新标签时才返回新的名称。
-- 必须原样保留 [[SMARTTODO_IMAGE_N]] 这类图片占位符，不要删除、改名或移动到无关位置。`;
+- 必须原样保留 [[SMARTTODO_IMAGE_N]] 这类图片占位符，不要删除、改名或移动到无关位置。
+- todos 数组至少包含 1 个元素。`;
 }
 
 export function buildMarkdownPolishSystemPrompt(

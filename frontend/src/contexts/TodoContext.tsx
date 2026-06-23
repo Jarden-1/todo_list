@@ -229,10 +229,14 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
   const addTodoFromAi = useCallback(
     async (input: string) => {
       const timezone = user?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const { todo, undoRecord: nextUndoRecord } = await organizeTodo(input, timezone);
-      setTodos((prev) => upsertTodo(prev, todo));
+      const { todo, todos: createdTodos, undoRecord: nextUndoRecord } =
+        await organizeTodo(input, timezone);
+      // Backend may split into multiple todos by time; fall back to the single
+      // `todo` field for older responses.
+      const created = createdTodos && createdTodos.length > 0 ? createdTodos : [todo];
+      setTodos((prev) => created.reduce((list, item) => upsertTodo(list, item), prev));
       setUndoRecord(nextUndoRecord);
-      return todo;
+      return created;
     },
     [user?.timezone]
   );
@@ -240,10 +244,12 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
   const undoLastAiCreate = useCallback(async () => {
     if (!undoRecord) return null;
 
-    const { originalInput, deletedTodoId } = await applyUndo(undoRecord.id);
-    setTodos((prev) => prev.filter((todo) => todo.id !== deletedTodoId));
+    const { originalInput, deletedTodoId, deletedTodoIds } = await applyUndo(undoRecord.id);
+    const removed = deletedTodoIds && deletedTodoIds.length > 0 ? deletedTodoIds : [deletedTodoId];
+    const removedSet = new Set(removed);
+    setTodos((prev) => prev.filter((todo) => !removedSet.has(todo.id)));
     setUndoRecord(null);
-    setSelectedTodoId((prev) => (prev === deletedTodoId ? null : prev));
+    setSelectedTodoId((prev) => (prev && removedSet.has(prev) ? null : prev));
     return originalInput;
   }, [undoRecord]);
 

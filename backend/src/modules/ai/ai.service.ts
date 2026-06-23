@@ -10,7 +10,7 @@ import {
 } from "./ai.schemas";
 import { toTodoDto, toUndoRecordDto, todoDtoInclude } from "./ai.dto";
 import type { TodoDto, UndoRecordDto } from "./ai.dto";
-import { parseAiTodoResult } from "./aiResultParser";
+import { parseAiTodoResultList } from "./aiResultParser";
 import { createEntityId } from "./ids";
 import {
   replaceImagesWithPlaceholders,
@@ -27,8 +27,12 @@ const DEFAULT_PROJECT_COLOR = "#6366F1";
 const DEFAULT_TAG_COLOR = "#6366F1";
 
 export interface TodoOrganizationResponse {
+  // Primary (first) created todo — kept for backward compatibility.
   todo: TodoDto;
+  // All created todos (1..N) when the input was split by time.
+  todos: TodoDto[];
   aiResult: AiTodoResult;
+  aiResults: AiTodoResult[];
   undoRecord: UndoRecordDto;
 }
 
@@ -270,25 +274,23 @@ function buildReminderInputs(
   return defaultReminder ? [defaultReminder] : [];
 }
 
-async function createTodoFromAiResult(
+// Inserts a single todo (and its project/tags/subtasks/reminders) within the
+// transaction. Does NOT touch undo records — the batch orchestrator owns undo.
+async function insertSingleTodo(
   tx: Prisma.TransactionClient,
   userId: string,
-  input: TodoOrganizationRequest,
+  originalInput: string,
   aiResult: AiTodoResult,
   model: string,
   advanceMinutes: number,
   now: Date
-): Promise<{ todoId: string; undoRecordId: string }> {
+): Promise<string> {
   const projectId = await findOrCreateProject(tx, userId, aiResult.projectName, now);
   const tagIds = await findOrCreateTags(tx, userId, aiResult.tags, now);
   const todoId = createEntityId("todo");
   const dueAt = dateFromIso(aiResult.dueAt);
   const reminders = buildReminderInputs(aiResult, dueAt, advanceMinutes);
-  const undoRecordId = createEntityId("undo");
-  const undoExpiresAt = new Date(now.getTime() + AI_UNDO_TTL_MS);
 
-  // TODO(todos-integration): switch to a transaction-aware TodosService helper
-  // once the todos module exposes one, so AI keeps sharing todo business rules.
   await tx.todo.create({
     data: {
       id: todoId,
@@ -299,7 +301,7 @@ async function createTodoFromAiResult(
       projectId,
       dueAt,
       contentMarkdown: aiResult.contentMarkdown ?? "",
-      originalInput: input.input,
+      originalInput,
       aiMeta: buildAiMeta(aiResult, model, now),
       createdAt: now,
       updatedAt: now
@@ -346,6 +348,37 @@ async function createTodoFromAiResult(
     });
   }
 
+  return todoId;
+}
+
+// Creates N todos (split by the AI) under a SINGLE undo record so the whole
+// batch can be reverted in one action.
+async function createTodosFromAiResults(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  input: TodoOrganizationRequest,
+  aiResults: AiTodoResult[],
+  model: string,
+  advanceMinutes: number,
+  now: Date
+): Promise<{ todoIds: string[]; undoRecordId: string }> {
+  const todoIds: string[] = [];
+  for (const aiResult of aiResults) {
+    const todoId = await insertSingleTodo(
+      tx,
+      userId,
+      input.input,
+      aiResult,
+      model,
+      advanceMinutes,
+      now
+    );
+    todoIds.push(todoId);
+  }
+
+  const undoRecordId = createEntityId("undo");
+  const undoExpiresAt = new Date(now.getTime() + AI_UNDO_TTL_MS);
+
   await tx.undoRecord.updateMany({
     where: {
       userId,
@@ -362,21 +395,20 @@ async function createTodoFromAiResult(
       id: undoRecordId,
       userId,
       action: "ai_create_todo",
-      todoId,
+      // Keep the first id in the dedicated column for backward compatibility;
+      // the full list lives in payloadJson.todoIds.
+      todoId: todoIds[0],
       originalInput: input.input,
       payloadJson: {
-        todoId,
-        aiResult
+        todoIds,
+        aiResults
       },
       createdAt: now,
       expiresAt: undoExpiresAt
     }
   });
 
-  return {
-    todoId,
-    undoRecordId
-  };
+  return { todoIds, undoRecordId };
 }
 
 export async function organizeTodoWithAi(
@@ -419,22 +451,22 @@ export async function organizeTodoWithAi(
     temperature: 0.3,
     responseFormat: "json_object"
   });
-  const aiResult = parseAiTodoResult(content, input.input);
+  const aiResults = parseAiTodoResultList(content, input.input);
   const created = await prisma.$transaction(async (tx) =>
-    createTodoFromAiResult(
+    createTodosFromAiResults(
       tx,
       userId,
       input,
-      aiResult,
+      aiResults,
       aiConfig.model,
       settings?.ringtoneAdvanceMinutes ?? 15,
       now
     )
   );
-  const [todo, undoRecord] = await Promise.all([
-    prisma.todo.findFirstOrThrow({
+  const [todoRows, undoRecord] = await Promise.all([
+    prisma.todo.findMany({
       where: {
-        id: created.todoId,
+        id: { in: created.todoIds },
         userId,
         deletedAt: null
       },
@@ -448,9 +480,24 @@ export async function organizeTodoWithAi(
     })
   ]);
 
+  // Preserve creation order (findMany does not guarantee it).
+  const orderIndex = new Map(created.todoIds.map((id, index) => [id, index]));
+  const orderedTodos = [...todoRows].sort(
+    (a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0)
+  );
+  const todoDtos = orderedTodos.map((row) => toTodoDto(row));
+  const [firstTodo] = todoDtos;
+  const [firstAiResult] = aiResults;
+
+  if (!firstTodo || !firstAiResult) {
+    throw new ApiError("BUSINESS_ERROR", "AI 未能创建任何待办", 422);
+  }
+
   return {
-    todo: toTodoDto(todo),
-    aiResult,
+    todo: firstTodo,
+    todos: todoDtos,
+    aiResult: firstAiResult,
+    aiResults,
     undoRecord: toUndoRecordDto(undoRecord)
   };
 }

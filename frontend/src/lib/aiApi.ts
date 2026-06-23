@@ -4,7 +4,9 @@ import type { AiOrganizeResult, Todo, UndoRecord } from "./types";
 export function organizeTodo(input: string, timezone = "Asia/Shanghai") {
   return apiRequest<{
     todo: Todo;
+    todos?: Todo[];
     aiResult: AiOrganizeResult;
+    aiResults?: AiOrganizeResult[];
     undoRecord: UndoRecord;
   }>("/ai/todo-organizations", {
     method: "POST",
@@ -24,8 +26,9 @@ export function getLatestUndo() {
 }
 
 export function applyUndo(undoId: string) {
-  return apiRequest<{ originalInput: string; deletedTodoId: string }>(
-    `/undo/${encodeURIComponent(undoId)}/apply`,
-    { method: "POST" }
-  );
+  return apiRequest<{
+    originalInput: string;
+    deletedTodoId: string;
+    deletedTodoIds?: string[];
+  }>(`/undo/${encodeURIComponent(undoId)}/apply`, { method: "POST" });
 }
