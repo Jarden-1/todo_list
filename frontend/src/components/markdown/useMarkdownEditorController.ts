@@ -11,7 +11,6 @@ import { uploadFile } from "../../lib/filesApi";
 import {
   RAW_MARKDOWN_PATTERN,
   escapeAttribute,
-  escapeHtml,
   escapeMarkdownLabel,
   markdownToRichHtml,
   resolveImageSrc,
@@ -140,29 +139,15 @@ export function useMarkdownEditorController({
 
   const applyList = (ordered: boolean) => {
     if (richEditor) {
-      const tag = ordered ? "ol" : "ul";
+      // Build the list directly in the DOM — reliable even on an empty editor
+      // (execCommand("insert*List") silently no-ops there in Chromium).
       const selectedText = window.getSelection()?.toString() ?? "";
-
-      // Multi-line selection -> build a list from the lines.
-      if (selectedText.includes("\n")) {
-        const items = selectedText
-          .split(/\n+/)
-          .map((item) => `<li>${escapeHtml(item.trim())}</li>`);
-        richBridge.insertRichHtml(`<${tag}>${items.join("")}</${tag}>`);
-        return;
-      }
-
-      // Try the native command first (toggles list on the current block and
-      // lands the caret inside an <li>). On a truly empty editor this silently
-      // no-ops in Chrome, so detect failure and fall back to inserting a list
-      // with one empty <li> via the robust insertRichHtml (manual-Range
-      // fallback included) so the button always works.
-      const beforeHtml = richBridge.getRichHtml();
-      richBridge.runRichCommand(ordered ? "insertOrderedList" : "insertUnorderedList");
-      const afterHtml = richBridge.getRichHtml();
-      if (afterHtml === beforeHtml) {
-        richBridge.insertRichHtml(`<${tag}><li></li></${tag}>`);
-      }
+      const items = selectedText.includes("\n")
+        ? selectedText.split(/\n+/).map((item) => item.trim()).filter(Boolean)
+        : selectedText.trim()
+          ? [selectedText.trim()]
+          : [];
+      richBridge.insertRichList(ordered, items);
       return;
     }
 
@@ -175,12 +160,11 @@ export function useMarkdownEditorController({
 
   const applyTaskList = () => {
     if (richEditor) {
-      const selectedText = window.getSelection()?.toString().trim();
-      // Empty item when no selection, so the user can type into it directly.
-      const items = (selectedText ? selectedText.split(/\n+/) : [""]).map((item) =>
-        `<li><input type="checkbox" disabled /> ${escapeHtml(item.trim())}</li>`
-      );
-      richBridge.insertRichHtml(`<ul class="contains-task-list">${items.join("")}</ul>`);
+      const selectedText = window.getSelection()?.toString().trim() ?? "";
+      const items = selectedText
+        ? selectedText.split(/\n+/).map((item) => item.trim()).filter(Boolean)
+        : [];
+      richBridge.insertRichList(false, items, true);
       return;
     }
 

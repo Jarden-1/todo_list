@@ -185,6 +185,69 @@ export function useRichMarkdownBridge({
     emitRichChange();
   };
 
+  // Insert a list via direct DOM manipulation so it works reliably even on a
+  // completely empty editor (where execCommand("insertUnorderedList") silently
+  // no-ops in Chromium). `items` are plain-text lines; an empty array yields a
+  // single empty <li> with the caret placed inside it ready for typing.
+  const insertRichList = (ordered: boolean, items: string[], task = false) => {
+    const editor = richEditorRef.current;
+    if (!editor) return;
+    focusRichEditor();
+
+    const listTag = ordered ? "ol" : "ul";
+    const list = document.createElement(listTag);
+    if (task) list.className = "contains-task-list";
+
+    const lines = items.length > 0 ? items : [""];
+    const liNodes: HTMLLIElement[] = lines.map((line) => {
+      const li = document.createElement("li");
+      if (task) {
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.disabled = true;
+        li.appendChild(box);
+        li.appendChild(document.createTextNode(" "));
+      }
+      if (line) li.appendChild(document.createTextNode(line));
+      else li.appendChild(document.createElement("br"));
+      return li;
+    });
+    liNodes.forEach((li) => list.appendChild(li));
+
+    // Replace the current selection (if inside the editor) with the list,
+    // otherwise append to the end.
+    const selection = window.getSelection();
+    const range =
+      selection &&
+      selection.rangeCount > 0 &&
+      editor.contains(selection.getRangeAt(0).commonAncestorContainer)
+        ? selection.getRangeAt(0)
+        : (() => {
+            const r = document.createRange();
+            r.selectNodeContents(editor);
+            r.collapse(false);
+            return r;
+          })();
+
+    range.deleteContents();
+    range.insertNode(list);
+
+    // Place the caret inside the first <li> (after the checkbox/space for task
+    // lists) so the user can type immediately.
+    if (selection) {
+      const firstLi = liNodes[0];
+      const caret = document.createRange();
+      caret.selectNodeContents(firstLi);
+      caret.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(caret);
+      savedRangeRef.current = caret.cloneRange();
+    }
+
+    emitRichChange();
+    rememberSelection();
+  };
+
   useEffect(() => {
     if (!enabled) return;
     const editor = richEditorRef.current;
@@ -303,6 +366,7 @@ export function useRichMarkdownBridge({
     insertRichHtml,
     insertRichText,
     setEmptyRichBlock,
+    insertRichList,
     getRichHtml,
     handleInput,
     handleBlur,

@@ -200,26 +200,30 @@
      Priority of removal (first to go): image -> link -> strikethrough/underline
      -> ordered/task list -> heading -> unordered list. Core actions (emoji /
      bold / italic) always stay. Thresholds are generous so icons disappear
-     BEFORE they can ever reach the floating AI/fullscreen cluster. */
+     BEFORE they can ever reach the floating AI/fullscreen cluster.
+
+     IMPORTANT: these buttons carry Tailwind utility classes like `inline-flex`
+     which live in @layer utilities — a HIGHER layer than this @layer
+     components. Without !important the utility `display:inline-flex` always
+     wins over `display:none`, so the buttons never actually hide (this was the
+     root cause of the toolbar overlap on narrow widths). !important escapes the
+     layer cascade and makes the hiding actually take effect. */
   @container (max-width: 560px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-6 { display: none; }
+    .markdown-toolbar-responsive .md-toolbar-hide-6 { display: none !important; }
   }
   @container (max-width: 520px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-5 { display: none; }
+    .markdown-toolbar-responsive .md-toolbar-hide-5 { display: none !important; }
   }
   @container (max-width: 480px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-1 { display: none; }
+    .markdown-toolbar-responsive .md-toolbar-hide-1 { display: none !important; }
   }
   @container (max-width: 440px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-2 { display: none; }
+    .markdown-toolbar-responsive .md-toolbar-hide-2 { display: none !important; }
   }
   @container (max-width: 400px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-4 { display: none; }
-  }
-  @container (max-width: 360px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-3 { display: none; }
+    .markdown-toolbar-responsive .md-toolbar-hide-4 { display: none !important; }
   }
   @container (max-width: 380px) {
-    .markdown-toolbar-responsive .md-toolbar-hide-3 { display: none; }
+    .markdown-toolbar-responsive .md-toolbar-hide-3 { display: none !important; }
   }
 }
