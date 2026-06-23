@@ -172,8 +172,16 @@
   }
   .markdown-toolbar-format-group {
     flex-wrap: nowrap;
-    overflow: visible;
-    padding-right: 0.25rem;
+    /* Clip horizontal overflow so trailing format buttons (link/image) never
+       bleed out of the toolbar and collide with the detail-panel header icons
+       when the composer is narrow. overflow-y stays visible so the emoji /
+       heading dropdowns (which open below) are not clipped. */
+    overflow-x: clip;
+    overflow-y: visible;
+    /* Reserve room on the right so the format buttons never run under the
+       floating AI / fullscreen actions area. */
+    padding-right: 0.5rem;
+    max-width: 100%;
   }
   .markdown-toolbar-format-item {
     flex: 0 0 auto;

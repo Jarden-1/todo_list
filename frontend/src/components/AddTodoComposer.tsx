@@ -146,6 +146,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     title: string;
     priority: Parameters<typeof addTodo>[0]["priority"];
     dueAt?: string;
+    dueAtPrecision?: Parameters<typeof addTodo>[0]["dueAtPrecision"];
     projectId?: string;
     assignee?: string;
     contentMarkdown: string;
@@ -155,6 +156,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
         title: fields.title,
         priority: fields.priority,
         dueAt: fields.dueAt,
+        dueAtPrecision: fields.dueAtPrecision,
         projectId: fields.projectId,
         tagIds: [],
         assignee: fields.assignee,
