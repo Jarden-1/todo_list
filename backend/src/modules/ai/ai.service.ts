@@ -300,6 +300,7 @@ async function insertSingleTodo(
       priority: aiResult.priority,
       projectId,
       dueAt,
+      dueAtPrecision: aiResult.dueAtPrecision ?? (dueAt ? "datetime" : "none"),
       contentMarkdown: aiResult.contentMarkdown ?? "",
       originalInput,
       aiMeta: buildAiMeta(aiResult, model, now),

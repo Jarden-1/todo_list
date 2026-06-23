@@ -182,6 +182,7 @@ export class TodosService {
           priority: input.priority ?? "medium",
           projectId: input.projectId ?? null,
           dueAt,
+          dueAtPrecision: input.dueAtPrecision ?? "datetime",
           contentMarkdown,
           originalInput: input.originalInput ?? null,
           ...(input.aiMeta !== undefined
@@ -232,6 +233,15 @@ export class TodosService {
 
       if (input.dueAt !== undefined) {
         data.dueAt = nextDueAt;
+        // Clearing the due date resets precision; setting a date without an
+        // explicit precision defaults to exact datetime.
+        if (input.dueAtPrecision === undefined) {
+          data.dueAtPrecision = nextDueAt ? "datetime" : "none";
+        }
+      }
+
+      if (input.dueAtPrecision !== undefined) {
+        data.dueAtPrecision = input.dueAtPrecision;
       }
 
       if (input.assignee !== undefined) {
@@ -361,6 +371,7 @@ export class TodosService {
           priority: source.priority,
           projectId: source.projectId,
           dueAt: source.dueAt,
+          dueAtPrecision: source.dueAtPrecision,
           contentMarkdown,
           originalInput: source.originalInput,
           aiMeta:

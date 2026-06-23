@@ -110,6 +110,7 @@ export function toTodoDto(todo: TodoWithRelations) {
     projectId: todo.projectId,
     tagIds: todo.todoTags.map((todoTag) => todoTag.tagId),
     dueAt: toIso(todo.dueAt),
+    dueAtPrecision: todo.dueAtPrecision,
     reminders: todo.reminders.map(toReminderDto),
     contentMarkdown: todo.contentMarkdown,
     originalInput: todo.originalInput,

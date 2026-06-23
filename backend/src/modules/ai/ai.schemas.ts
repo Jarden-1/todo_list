@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const todoPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
+export const dueAtPrecisionSchema = z.enum(["datetime", "day", "week", "none"]);
 export const confidenceValueSchema = z.enum(["low", "medium", "high"]);
 
 export const todoOrganizationRequestSchema = z
@@ -38,6 +39,7 @@ export const aiTodoResultSchema = z
     projectName: z.string().trim().min(1).max(120).optional(),
     priority: todoPrioritySchema,
     dueAt: z.string().trim().min(1).optional(),
+    dueAtPrecision: dueAtPrecisionSchema.optional(),
     reminders: z.array(aiReminderResultSchema).max(20).optional(),
     tags: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
     subtasks: z.array(z.string().trim().min(1).max(200)).max(100).optional(),

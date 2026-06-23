@@ -1,5 +1,6 @@
 import { apiRequest } from "./apiClient";
 import type {
+  DueAtPrecision,
   Project,
   Reminder,
   Tag,
@@ -14,6 +15,7 @@ export interface TodoCreateInput {
   priority?: TodoPriority;
   projectId?: string | null;
   dueAt?: string | null;
+  dueAtPrecision?: DueAtPrecision;
   assignee?: string | null;
   contentMarkdown?: string;
   originalInput?: string | null;
@@ -29,6 +31,7 @@ export type TodoPatchInput = Partial<
 > & {
   projectId?: string | null;
   dueAt?: string | null;
+  dueAtPrecision?: DueAtPrecision;
   assignee?: string | null;
   contentMarkdown?: string | null;
   originalInput?: string | null;

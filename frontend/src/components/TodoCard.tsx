@@ -163,7 +163,7 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
               >
                 {overdue ? <AlertCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
                 {overdue && "逾期 · "}
-                {formatDueDate(todo.dueAt)}
+                {formatDueDate(todo.dueAt, todo.dueAtPrecision)}
               </span>
             )}
           </div>

@@ -3,6 +3,8 @@
 
 export type TodoStatus = "todo" | "doing" | "done" | "cancelled";
 export type TodoPriority = "low" | "medium" | "high" | "urgent";
+// Granularity of a due date: exact time, whole day, within the week, or none.
+export type DueAtPrecision = "datetime" | "day" | "week" | "none";
 
 export interface Subtask {
   id: string;
@@ -80,6 +82,7 @@ export interface Todo {
   projectId: string | null;
   tagIds: string[];
   dueAt: string | null;
+  dueAtPrecision?: DueAtPrecision;
   reminders: Reminder[];
   contentMarkdown: string;
   originalInput: string | null;
@@ -111,6 +114,7 @@ export interface AiOrganizeResult {
   projectName?: string;
   priority: TodoPriority;
   dueAt?: string;
+  dueAtPrecision?: DueAtPrecision;
   reminders?: Array<{ remindAt: string; reason?: string }>;
   tags?: string[];
   subtasks?: string[];

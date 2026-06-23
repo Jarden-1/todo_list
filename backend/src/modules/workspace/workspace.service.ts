@@ -493,6 +493,7 @@ async function createImportedTodo(
       priority: todo.priority,
       projectId,
       dueAt: nullableDate(todo.dueAt),
+      dueAtPrecision: todo.dueAtPrecision ?? "datetime",
       contentMarkdown: todo.contentMarkdown,
       originalInput: todo.originalInput ?? null,
       aiMeta: optionalJsonInput(todo.aiMeta),

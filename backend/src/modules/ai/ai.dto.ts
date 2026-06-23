@@ -34,6 +34,7 @@ export interface TodoDto {
   projectId?: string;
   tagIds: string[];
   dueAt?: string;
+  dueAtPrecision?: string;
   reminders: ReminderDto[];
   contentMarkdown: string;
   originalInput?: string;
@@ -95,6 +96,7 @@ export function toTodoDto(todo: TodoWithDtoRelations): TodoDto {
     projectId: todo.projectId ?? undefined,
     tagIds: todo.todoTags.map((todoTag) => todoTag.tagId),
     dueAt: dateToIso(todo.dueAt),
+    dueAtPrecision: todo.dueAtPrecision,
     reminders: todo.reminders.map((reminder) => ({
       id: reminder.id,
       remindAt: reminder.remindAt.toISOString(),

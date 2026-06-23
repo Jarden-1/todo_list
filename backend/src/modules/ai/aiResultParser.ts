@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   aiConfidenceSchema,
   aiTodoResultSchema,
+  dueAtPrecisionSchema,
   todoPrioritySchema,
   type AiTodoResult
 } from "./ai.schemas";
@@ -18,6 +19,7 @@ const looseAiTodoResultSchema = z
     projectName: z.unknown().optional(),
     priority: z.unknown().optional(),
     dueAt: z.unknown().optional(),
+    dueAtPrecision: z.unknown().optional(),
     reminders: z.unknown().optional(),
     tags: z.unknown().optional(),
     subtasks: z.unknown().optional(),
@@ -82,6 +84,22 @@ function toIsoString(value: unknown): string | undefined {
 function normalizePriority(value: unknown): AiTodoResult["priority"] {
   const parsed = todoPrioritySchema.safeParse(value);
   return parsed.success ? parsed.data : "medium";
+}
+
+function normalizeDuePrecision(
+  value: unknown,
+  hasDueAt: boolean
+): AiTodoResult["dueAtPrecision"] {
+  const parsed = dueAtPrecisionSchema.safeParse(value);
+  if (parsed.success) {
+    // A precision of "none" only makes sense without a due date.
+    if (parsed.data === "none") {
+      return hasDueAt ? "datetime" : "none";
+    }
+    return parsed.data;
+  }
+  // Default: exact time when a due date exists, otherwise none.
+  return hasDueAt ? "datetime" : "none";
 }
 
 function normalizeConfidence(value: unknown): AiTodoResult["confidence"] | undefined {
@@ -181,11 +199,13 @@ function normalizeSingleTodo(
   const contentMarkdown = cleanString(parsed.data.contentMarkdown, 1024 * 1024) ?? "";
   const restoredContentMarkdown = restoreImagePlaceholders(contentMarkdown, placeholders);
 
+  const dueAt = toIsoString(parsed.data.dueAt);
   const normalized = {
     title: cleanString(parsed.data.title, 200) ?? fallbackTitle(originalInput),
     projectName: cleanString(parsed.data.projectName, 120),
     priority: normalizePriority(parsed.data.priority),
-    dueAt: toIsoString(parsed.data.dueAt),
+    dueAt,
+    dueAtPrecision: normalizeDuePrecision(parsed.data.dueAtPrecision, Boolean(dueAt)),
     reminders: normalizeReminders(parsed.data.reminders),
     tags: cleanStringArray(parsed.data.tags, 20, 60),
     subtasks: cleanStringArray(parsed.data.subtasks, 100, 200),

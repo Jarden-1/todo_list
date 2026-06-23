@@ -13,10 +13,30 @@ import {
   endOfWeek,
 } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import type { DueAtPrecision } from "./types";
 
-export function formatDueDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "";
+// Format a due date honoring its precision. For "day"/"week" precision the
+// time-of-day is hidden (it is only a sorting placeholder, e.g. 23:59).
+export function formatDueDate(
+  dateStr: string | null | undefined,
+  precision: DueAtPrecision = "datetime"
+): string {
+  if (!dateStr || precision === "none") return "";
   const date = parseISO(dateStr);
+
+  if (precision === "week") {
+    if (isThisWeek(date, { weekStartsOn: 1 })) return "本周内";
+    return `${format(date, "M月d日", { locale: zhCN })}当周`;
+  }
+
+  if (precision === "day") {
+    if (isToday(date)) return "今天截止";
+    if (isTomorrow(date)) return "明天截止";
+    if (isYesterday(date)) return "昨天截止";
+    return `${format(date, "M月d日", { locale: zhCN })}截止`;
+  }
+
+  // datetime — show the exact time
   if (isToday(date)) return `今天 ${format(date, "HH:mm")}`;
   if (isTomorrow(date)) return `明天 ${format(date, "HH:mm")}`;
   if (isYesterday(date)) return `昨天 ${format(date, "HH:mm")}`;
@@ -84,6 +104,21 @@ export function formatShortDate(dateStr: string): string {
 
 export function formatTime(dateStr: string): string {
   return format(parseISO(dateStr), "HH:mm");
+}
+
+// End of the given day (23:59) — used as the sort/expiry placeholder for
+// "day"-precision due dates.
+export function endOfDayIso(base: Date = new Date()): string {
+  const d = new Date(base);
+  d.setHours(23, 59, 0, 0);
+  return d.toISOString();
+}
+
+// End of the current week (Sunday 23:59) — placeholder for "week" precision.
+export function endOfWeekIso(base: Date = new Date()): string {
+  const d = endOfWeek(base, { weekStartsOn: 1 });
+  d.setHours(23, 59, 0, 0);
+  return d.toISOString();
 }
 
 export function getDefaultDueTime(input: string): string | undefined {

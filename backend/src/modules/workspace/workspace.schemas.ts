@@ -79,6 +79,10 @@ const backupTodoSchema = z
     projectId: idString.nullable().optional(),
     tagIds: z.array(idString).optional().default([]),
     dueAt: isoDateString.nullable().optional(),
+    dueAtPrecision: z
+      .enum(["datetime", "day", "week", "none"])
+      .optional()
+      .default("datetime"),
     reminders: z.array(backupReminderSchema).optional().default([]),
     contentMarkdown: z.string().max(1024 * 1024).optional().default(""),
     originalInput: nullableText(5000),

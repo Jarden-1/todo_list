@@ -116,6 +116,9 @@ model Todo {
   priority           String              @db.Text
   projectId          String?             @map("project_id") @db.Text
   dueAt              DateTime?           @map("due_at") @db.Timestamptz(3)
+  // Granularity of dueAt: "datetime" (exact time), "day" (whole day),
+  // "week" (within the week), "none". Controls how the due time is displayed.
+  dueAtPrecision     String              @default("datetime") @map("due_at_precision") @db.Text
   contentMarkdown    String              @default("") @map("content_markdown") @db.Text
   originalInput      String?             @map("original_input") @db.Text
   aiMeta             Json?               @map("ai_meta") @db.JsonB

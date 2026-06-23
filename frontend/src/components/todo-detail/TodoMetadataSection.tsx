@@ -1,13 +1,21 @@
 import { useState, type RefObject } from "react";
 import { AlertTriangle, Check, Edit3, User, X } from "lucide-react";
 import { toast } from "sonner";
-import type { Project, Todo, TodoPriority } from "../../lib/types";
+import type { DueAtPrecision, Project, Todo, TodoPriority } from "../../lib/types";
 import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
+import { endOfDayIso, endOfWeekIso } from "../../lib/dateUtils";
 import { PRIORITY_OPTIONS } from "../../lib/todoOptions";
 import { cn } from "../../lib/utils";
 import { useTodo } from "../../contexts/TodoContext";
 
 const NEW_PROJECT_VALUE = "__new_project__";
+
+const DUE_PRECISION_OPTIONS: Array<{ value: DueAtPrecision; label: string }> = [
+  { value: "datetime", label: "精确时刻" },
+  { value: "day", label: "某天" },
+  { value: "week", label: "本周内" },
+  { value: "none", label: "无" },
+];
 
 interface TodoMetadataSectionProps {
   todo: Todo;
@@ -70,6 +78,31 @@ export function TodoMetadataSection({
     } finally {
       setSavingProject(false);
     }
+  };
+
+  const precision: DueAtPrecision =
+    todo.dueAtPrecision ?? (todo.dueAt ? "datetime" : "none");
+
+  // Switching precision recomputes a sensible dueAt placeholder so sorting and
+  // overdue detection still work, while display hides the time for day/week.
+  const handlePrecisionChange = (next: DueAtPrecision) => {
+    if (next === precision) return;
+    if (next === "none") {
+      onUpdate({ dueAt: null, dueAtPrecision: "none" });
+      return;
+    }
+    if (next === "week") {
+      onUpdate({ dueAt: endOfWeekIso(), dueAtPrecision: "week" });
+      return;
+    }
+    if (next === "day") {
+      const base = todo.dueAt ? new Date(todo.dueAt) : new Date();
+      onUpdate({ dueAt: endOfDayIso(base), dueAtPrecision: "day" });
+      return;
+    }
+    // datetime
+    const base = todo.dueAt ? new Date(todo.dueAt) : new Date();
+    onUpdate({ dueAt: base.toISOString(), dueAtPrecision: "datetime" });
   };
 
   return (
@@ -199,30 +232,82 @@ export function TodoMetadataSection({
 
       <div>
         <label className="detail-label">截止时间</label>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={onOpenDuePicker}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              onOpenDuePicker();
-            }
-          }}
-          className="mt-1"
-        >
-          <input
-            ref={dueAtRef}
-            type="datetime-local"
-            value={toDatetimeLocalValue(todo.dueAt)}
-            onChange={(event) =>
-              onUpdate({
-                dueAt: event.target.value ? new Date(event.target.value).toISOString() : null,
-              })
-            }
-            className={cn("field-input cursor-pointer", overdue && "border-destructive/50 text-destructive")}
-          />
+
+        {/* Precision selector */}
+        <div className="mt-1 flex flex-wrap gap-1">
+          {DUE_PRECISION_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handlePrecisionChange(option.value)}
+              className={cn(
+                "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                precision === option.value
+                  ? "border-primary/50 bg-primary/10 text-primary font-medium"
+                  : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
+
+        {/* Contextual picker by precision */}
+        {precision === "datetime" && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpenDuePicker}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onOpenDuePicker();
+              }
+            }}
+            className="mt-1.5"
+          >
+            <input
+              ref={dueAtRef}
+              type="datetime-local"
+              value={toDatetimeLocalValue(todo.dueAt)}
+              onChange={(event) =>
+                onUpdate({
+                  dueAt: event.target.value ? new Date(event.target.value).toISOString() : null,
+                  dueAtPrecision: "datetime",
+                })
+              }
+              className={cn("field-input cursor-pointer", overdue && "border-destructive/50 text-destructive")}
+            />
+          </div>
+        )}
+
+        {precision === "day" && (
+          <input
+            type="date"
+            value={toDatetimeLocalValue(todo.dueAt).slice(0, 10)}
+            onChange={(event) => {
+              if (!event.target.value) {
+                onUpdate({ dueAt: null, dueAtPrecision: "none" });
+                return;
+              }
+              const picked = new Date(`${event.target.value}T23:59:00`);
+              onUpdate({ dueAt: picked.toISOString(), dueAtPrecision: "day" });
+            }}
+            className={cn("field-input mt-1.5 cursor-pointer", overdue && "border-destructive/50 text-destructive")}
+          />
+        )}
+
+        {precision === "week" && (
+          <p className="mt-1.5 rounded-lg bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
+            本周内截止（周一至周日）
+          </p>
+        )}
+
+        {precision === "none" && (
+          <p className="mt-1.5 rounded-lg bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
+            未设置截止时间
+          </p>
+        )}
 
         {overdue && (
           <div className="mt-2">

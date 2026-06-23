@@ -12,6 +12,7 @@ const nullableText = (max: number) => z.string().trim().max(max).nullable().opti
 
 export const todoStatusSchema = z.enum(["todo", "doing", "done", "cancelled"]);
 export const todoPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
+export const dueAtPrecisionSchema = z.enum(["datetime", "day", "week", "none"]);
 
 export const projectIdParamsSchema = z.object({
   projectId: idString
@@ -83,6 +84,7 @@ export const todoCreateSchema = z
     priority: todoPrioritySchema.optional(),
     projectId: idString.nullable().optional(),
     dueAt: isoDateString.nullable().optional(),
+    dueAtPrecision: dueAtPrecisionSchema.optional(),
     assignee: nullableText(120),
     contentMarkdown: z.string().max(1024 * 1024).optional(),
     originalInput: nullableText(5000),
@@ -101,6 +103,7 @@ export const todoPatchSchema = z
     priority: todoPrioritySchema.optional(),
     projectId: idString.nullable().optional(),
     dueAt: isoDateString.nullable().optional(),
+    dueAtPrecision: dueAtPrecisionSchema.optional(),
     assignee: nullableText(120),
     contentMarkdown: z.string().max(1024 * 1024).nullable().optional(),
     originalInput: nullableText(5000),
