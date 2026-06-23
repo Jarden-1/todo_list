@@ -7,6 +7,7 @@ import { useResizableHeight } from "../hooks/useResizableHeight";
 import { cn } from "../lib/utils";
 import { MarkdownToolbar } from "./markdown/MarkdownToolbar";
 import type { MarkdownToolbarMode } from "./markdown/MarkdownToolbar";
+import { AiToolbarButton, FullscreenToolbarButton } from "./markdown/ToolbarActions";
 import { useMarkdownEditorController } from "./markdown/useMarkdownEditorController";
 
 interface MarkdownEditorProps {
@@ -93,11 +94,16 @@ export function MarkdownEditor({
     onKeyDown,
     todoId,
   });
-  // Responsive-mode AI / fullscreen actions now live inline in the toolbar row
-  // (not floating over the text area), so the text area no longer needs extra
-  // padding reserved for them.
-  const hasFloatingActions = false;
-  const floatingActionPadding = undefined;
+  // In responsive mode the AI / fullscreen actions float at the editor's
+  // bottom-right (rendered as a sibling of the toolbar, below). Reserve a bit
+  // of bottom-right padding in the text area so typed content never runs under
+  // them.
+  const hasFloatingActions =
+    resolvedToolbarMode === "responsive" &&
+    (Boolean(onAiOrganize) || Boolean(showFullscreenToggle && onToggleFullscreen));
+  const floatingActionPadding = hasFloatingActions
+    ? { paddingRight: "4.5rem", paddingBottom: "3rem" }
+    : undefined;
 
   return (
     <div
@@ -180,6 +186,28 @@ export function MarkdownEditor({
             textareaClassName
           )}
         />
+      )}
+
+      {hasFloatingActions && (
+        // Sibling of the toolbar/editor, absolutely positioned to the editor
+        // CONTAINER's bottom-right. The container is `relative` and full-height
+        // (flex column when resizable), so this stays pinned bottom-right
+        // regardless of how short or tall the editor is — no overlap with the
+        // top toolbar row.
+        <div className="markdown-toolbar-actions">
+          <AiToolbarButton
+            onAiOrganize={onAiOrganize}
+            aiDisabled={aiDisabled}
+            aiLoading={aiLoading}
+            aiLabel={aiLabel}
+          />
+          <FullscreenToolbarButton
+            fullscreen={fullscreen}
+            showFullscreenToggle={showFullscreenToggle}
+            onToggleFullscreen={onToggleFullscreen}
+            fullscreenToggleLabel={fullscreenToggleLabel}
+          />
+        </div>
       )}
 
       {canResizeY && (

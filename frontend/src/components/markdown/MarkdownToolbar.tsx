@@ -110,23 +110,17 @@ function MinimalToolbar(props: MarkdownToolbarProps) {
 }
 
 function ResponsiveToolbar(props: MarkdownToolbarProps) {
-  const hasActions =
-    Boolean(props.onAiOrganize) ||
-    Boolean(props.showFullscreenToggle && props.onToggleFullscreen);
-
+  // NOTE: the AI / fullscreen actions are intentionally NOT rendered here.
+  // They live as a sibling of the toolbar in MarkdownEditor so they can be
+  // absolutely positioned at the editor container's bottom-right (the
+  // container is full-height + relative), instead of being anchored to this
+  // short toolbar row — which caused them to sit at the top and overlap.
   return (
     <div className={cn("markdown-toolbar-responsive", props.toolbarClassName)}>
       <div className="markdown-toolbar-format-group">
         <EmojiToolbarItem {...props} className="markdown-toolbar-format-item" />
         <ToolbarFormatButtons props={props} responsive />
       </div>
-
-      {hasActions && (
-        <div className="markdown-toolbar-actions">
-          <AiToolbarButton {...props} />
-          <FullscreenToolbarButton {...props} />
-        </div>
-      )}
     </div>
   );
 }
