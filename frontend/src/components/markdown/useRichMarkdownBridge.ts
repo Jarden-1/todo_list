@@ -206,7 +206,31 @@ export function useRichMarkdownBridge({
 
   useEffect(() => {
     if (!enabled || !autoFocus) return;
-    requestAnimationFrame(() => richEditorRef.current?.focus());
+    // The composer swaps a plain <textarea> (collapsed) for this rich editor
+    // (expanded) on click, so focus is lost across the unmount/mount. Re-focus
+    // here AND place a visible caret inside the editor — focusing an empty
+    // contentEditable alone sometimes leaves no caret, which is exactly the
+    // "expanded but no cursor" bug. Run after paint so the node is mounted.
+    requestAnimationFrame(() => {
+      const editor = richEditorRef.current;
+      if (!editor) return;
+      editor.focus();
+
+      const selection = window.getSelection();
+      const hasCaretInEditor =
+        selection &&
+        selection.rangeCount > 0 &&
+        editor.contains(selection.getRangeAt(0).commonAncestorContainer);
+
+      if (!hasCaretInEditor) {
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+      rememberSelection();
+    });
   }, [autoFocus, enabled]);
 
   // After deleting all text/images the browser often leaves a stray empty

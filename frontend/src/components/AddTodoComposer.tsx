@@ -218,6 +218,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
             onKeyDown={handleKeyDown}
             placeholder="写下待办内容，支持 Markdown，或使用 AI 整理…"
             rows={4}
+            autoFocus
             rich
             toolbarMode="responsive"
             onAiOrganize={handleAiOrganize}
