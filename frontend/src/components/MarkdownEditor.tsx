@@ -1,5 +1,7 @@
 import {
+  useEffect,
   useRef,
+  useState,
   type KeyboardEvent,
   type RefObject,
 } from "react";
@@ -70,7 +72,14 @@ export function MarkdownEditor({
   const localTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = textareaRef ?? localTextareaRef;
   const richEditor = rich || fullscreen;
+  const [sourceMode, setSourceMode] = useState(false);
+  const activeSourceMode = richEditor && sourceMode;
+  const effectiveRichEditor = richEditor && !activeSourceMode;
   const canResizeY = resizableY && !fullscreen;
+
+  useEffect(() => {
+    if (!richEditor) setSourceMode(false);
+  }, [richEditor]);
   const resize = useResizableHeight({
     enabled: canResizeY,
     defaultHeight,
@@ -89,7 +98,7 @@ export function MarkdownEditor({
     value,
     onChange,
     editorRef,
-    richEditor,
+    richEditor: effectiveRichEditor,
     autoFocus,
     onKeyDown,
     todoId,
@@ -141,9 +150,11 @@ export function MarkdownEditor({
         showFullscreenToggle={showFullscreenToggle}
         onToggleFullscreen={onToggleFullscreen}
         fullscreenToggleLabel={fullscreenToggleLabel}
+        sourceMode={activeSourceMode}
+        onToggleSourceMode={richEditor ? () => setSourceMode((current) => !current) : undefined}
       />
 
-      {richEditor ? (
+      {effectiveRichEditor ? (
         <div
           ref={editor.richEditorRef}
           contentEditable
@@ -182,6 +193,7 @@ export function MarkdownEditor({
           style={floatingActionPadding}
           className={cn(
             "w-full min-w-0 bg-transparent text-foreground outline-none placeholder:text-muted-foreground",
+            activeSourceMode && "font-mono text-[12px] leading-relaxed selection:bg-primary/20",
             (fullscreen || canResizeY) && "min-h-0 flex-1 overflow-y-auto resize-none",
             textareaClassName
           )}

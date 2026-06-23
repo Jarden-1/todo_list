@@ -274,6 +274,11 @@ export function useMarkdownEditorController({
         insertLink();
         return;
       }
+      if (event.shiftKey && key === "x") {
+        event.preventDefault();
+        applyInline("strikeThrough", "~~", "~~");
+        return;
+      }
       if (event.shiftKey && (key === "7" || event.code === "Digit7")) {
         event.preventDefault();
         applyList(true);
@@ -349,6 +354,14 @@ export function useMarkdownEditorController({
     }
 
     onKeyDown?.(event);
+    if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey) return;
+
+    const nativeEvent = event.nativeEvent as KeyboardEvent<HTMLDivElement>["nativeEvent"] & {
+      isComposing?: boolean;
+    };
+    if (!nativeEvent.isComposing && (event.key === "Enter" || event.key === " ")) {
+      requestAnimationFrame(() => richBridge.normalizeRichEditor(true));
+    }
   };
 
   const handleRichBeforeInput = (event: FormEvent<HTMLDivElement>) => {

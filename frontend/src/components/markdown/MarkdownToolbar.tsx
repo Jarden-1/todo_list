@@ -1,5 +1,6 @@
 import {
   Bold,
+  Code2,
   Image as ImageIcon,
   Italic,
   Link,
@@ -16,6 +17,30 @@ import { EmojiToolbarItem, HeadingToolbarItem } from "./ToolbarMenus";
 import type { MarkdownToolbarProps, MarkdownToolbarMode } from "./markdownToolbarTypes";
 
 export type { MarkdownToolbarMode };
+
+function SourceModeToggle(props: MarkdownToolbarProps) {
+  if (!props.onToggleSourceMode) return null;
+
+  return (
+    <button
+      type="button"
+      aria-label={props.sourceMode ? "关闭 Markdown 源码模式" : "开启 Markdown 源码模式"}
+      aria-pressed={props.sourceMode}
+      title={props.sourceMode ? "切换到富文本预览" : "切换到 Markdown 源码"}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={props.onToggleSourceMode}
+      className={cn(
+        "inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-lg border px-2 text-[11px] font-medium transition-colors",
+        props.sourceMode
+          ? "border-primary/35 bg-primary/10 text-primary"
+          : "border-border/60 bg-background/70 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+      )}
+    >
+      <Code2 className="h-3.5 w-3.5" />
+      {props.sourceMode ? "MD" : "富文本"}
+    </button>
+  );
+}
 
 function ToolbarFormatButtons({
   props,
@@ -99,10 +124,13 @@ function ToolbarFormatButtons({
 
 function MinimalToolbar(props: MarkdownToolbarProps) {
   const hasActions = props.onAiOrganize || (props.showFullscreenToggle && props.onToggleFullscreen);
-  if (!hasActions) return null;
+  const hasSourceToggle = Boolean(props.onToggleSourceMode);
+  if (!hasActions && !hasSourceToggle) return null;
 
   return (
     <div className={cn("flex shrink-0 items-center gap-1 px-2.5 pt-2", props.toolbarClassName)}>
+      <SourceModeToggle {...props} />
+      <div className="ml-auto" />
       <AiToolbarButton {...props} className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" />
       <FullscreenToolbarButton {...props} className="h-7 w-7" />
     </div>
@@ -118,8 +146,13 @@ function ResponsiveToolbar(props: MarkdownToolbarProps) {
   return (
     <div className={cn("markdown-toolbar-responsive", props.toolbarClassName)}>
       <div className="markdown-toolbar-format-group">
-        <EmojiToolbarItem {...props} className="markdown-toolbar-format-item" />
-        <ToolbarFormatButtons props={props} responsive />
+        <SourceModeToggle {...props} />
+        {!props.sourceMode && (
+          <>
+            <EmojiToolbarItem {...props} className="markdown-toolbar-format-item" />
+            <ToolbarFormatButtons props={props} responsive />
+          </>
+        )}
       </div>
     </div>
   );
@@ -133,8 +166,13 @@ function FullToolbar(props: MarkdownToolbarProps) {
         props.toolbarClassName
       )}
     >
-      <EmojiToolbarItem {...props} />
-      <ToolbarFormatButtons props={props} />
+      <SourceModeToggle {...props} />
+      {!props.sourceMode && (
+        <>
+          <EmojiToolbarItem {...props} />
+          <ToolbarFormatButtons props={props} />
+        </>
+      )}
 
       {props.onAiOrganize && (
         <>

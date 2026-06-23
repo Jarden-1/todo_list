@@ -368,6 +368,7 @@ export function useRichMarkdownBridge({
     setEmptyRichBlock,
     insertRichList,
     getRichHtml,
+    normalizeRichEditor,
     handleInput,
     handleBlur,
     handleFocus,

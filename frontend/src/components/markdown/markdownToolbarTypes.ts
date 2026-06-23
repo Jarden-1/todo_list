@@ -19,6 +19,8 @@ export interface MarkdownToolbarProps {
   applyTaskList: () => void;
   insertLink: () => void;
   openImagePicker: () => void;
+  sourceMode?: boolean;
+  onToggleSourceMode?: () => void;
   onAiOrganize?: () => void;
   aiLoading?: boolean;
   aiDisabled?: boolean;
