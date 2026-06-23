@@ -110,6 +110,10 @@ function MinimalToolbar(props: MarkdownToolbarProps) {
 }
 
 function ResponsiveToolbar(props: MarkdownToolbarProps) {
+  const hasActions =
+    Boolean(props.onAiOrganize) ||
+    Boolean(props.showFullscreenToggle && props.onToggleFullscreen);
+
   return (
     <div className={cn("markdown-toolbar-responsive", props.toolbarClassName)}>
       <div className="markdown-toolbar-format-group">
@@ -117,10 +121,12 @@ function ResponsiveToolbar(props: MarkdownToolbarProps) {
         <ToolbarFormatButtons props={props} responsive />
       </div>
 
-      <div className="markdown-toolbar-actions">
-        <AiToolbarButton {...props} />
-        <FullscreenToolbarButton {...props} />
-      </div>
+      {hasActions && (
+        <div className="markdown-toolbar-actions">
+          <AiToolbarButton {...props} />
+          <FullscreenToolbarButton {...props} />
+        </div>
+      )}
     </div>
   );
 }

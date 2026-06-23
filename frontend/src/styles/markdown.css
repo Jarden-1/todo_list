@@ -139,17 +139,15 @@
     opacity: 1;
   }
   .markdown-toolbar-responsive {
-    /* NOTE: must NOT be position:relative — the floating .markdown-toolbar-actions
-       child is absolutely positioned and needs to anchor to the editor
-       container (bottom-right), not to this short toolbar row. */
-    position: static;
+    /* Single flex row: format buttons take the remaining space (and clip /
+       progressively hide), the AI + fullscreen actions sit as a normal flex
+       child pinned at the end. Because actions are in-flow (not absolutely
+       positioned) they can NEVER overlap the format buttons regardless of the
+       editor height — which was the root cause of the overlap bug. */
     z-index: 20;
-    display: block;
-    align-items: start;
-    pointer-events: none;
-  }
-  .markdown-toolbar-responsive button {
-    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
   .markdown-toolbar-embedded {
     position: relative;
@@ -166,42 +164,27 @@
   .markdown-toolbar-format-group,
   .markdown-toolbar-actions {
     display: flex;
-    min-width: 0;
     align-items: center;
     gap: 0.125rem;
   }
   .markdown-toolbar-format-group {
+    flex: 1 1 auto;
+    /* Take the remaining row width and clip horizontally so format buttons can
+       never push into / under the actions cluster. overflow-y stays visible so
+       the emoji / heading dropdowns (which open below) are not clipped. */
+    min-width: 0;
     flex-wrap: nowrap;
-    /* Keep dropdowns (emoji / heading, which open below) un-clipped vertically,
-       while clipping horizontally so a stray button can never visually spill
-       under the floating actions. */
     overflow-x: clip;
     overflow-y: visible;
-    /* Reserve room on the right for the floating AI / fullscreen cluster
-       (sits at right:0.875rem, ~4.5rem wide) so format buttons never run
-       underneath / collide with it. */
-    padding-right: 5rem;
-    max-width: 100%;
   }
   .markdown-toolbar-format-item {
     flex: 0 0 auto;
   }
   .markdown-toolbar-actions {
-    position: absolute;
-    z-index: 16;
-    right: 0.875rem;
-    bottom: 0.875rem;
+    /* In-flow flex child, pinned to the row end — not absolutely positioned. */
     flex: 0 0 auto;
     justify-content: flex-end;
     gap: 0.25rem;
-    padding: 0.125rem;
-    border-radius: 0.75rem;
-    background: oklch(from var(--card) l c h / 88%);
-    box-shadow: 0 0.5rem 1.5rem oklch(0 0 0 / 8%);
-    backdrop-filter: blur(10px);
-  }
-  .markdown-editor-has-floating-actions .markdown-resize-y-handle {
-    right: 6rem;
   }
   /* Progressive hiding of secondary format buttons as the editor narrows.
      Priority of removal (first to go): image -> link -> strikethrough/underline

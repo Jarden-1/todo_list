@@ -93,12 +93,11 @@ export function MarkdownEditor({
     onKeyDown,
     todoId,
   });
-  const hasFloatingActions =
-    resolvedToolbarMode === "responsive" &&
-    (Boolean(onAiOrganize) || Boolean(showFullscreenToggle && onToggleFullscreen));
-  const floatingActionPadding = hasFloatingActions
-    ? { paddingRight: "5rem", paddingBottom: "3.5rem" }
-    : undefined;
+  // Responsive-mode AI / fullscreen actions now live inline in the toolbar row
+  // (not floating over the text area), so the text area no longer needs extra
+  // padding reserved for them.
+  const hasFloatingActions = false;
+  const floatingActionPadding = undefined;
 
   return (
     <div
