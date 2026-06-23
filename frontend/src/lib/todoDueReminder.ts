@@ -66,6 +66,13 @@ export function getDueReminder(todo: Todo) {
   };
 }
 
-export function isStaleDueWarning(warning: string) {
-  return /截止时间已默认解析|默认解析为|时间已默认解析/.test(warning);
+// AI may attach due-time related warnings at creation time (e.g. "无明确截止时间",
+// "部分时间信息模糊", "截止时间已默认解析为…"). These describe the state at
+// creation. Once the user has set/edited a due date they are no longer true, so
+// callers pass `hasDueAt` to drop ALL time-related warnings instead of matching a
+// fixed list of phrasings.
+export function isStaleDueWarning(warning: string, hasDueAt = false) {
+  if (/截止时间已默认解析|默认解析为|时间已默认解析/.test(warning)) return true;
+  if (hasDueAt && /(截止|时间|due)/i.test(warning)) return true;
+  return false;
 }
