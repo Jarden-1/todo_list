@@ -27,6 +27,9 @@ jobs:
             platform: linux
             icon: assets/SmartTodo.png
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
