@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTodo } from "../../contexts/TodoContext";
 import { Clock } from "lucide-react";
 import { Todo } from "../../lib/types";
+import { isActiveStatus } from "../../lib/todoFilter";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { TodoTimelineGroup } from "../timeline/TodoTimelineGroup";
@@ -60,7 +61,7 @@ export function TimelineView({ selectedId, onSelect }: TimelineViewProps) {
   };
 
   const activeTodos = todos.filter(
-    (t) => t.status !== "done" && t.status !== "cancelled"
+    (t) => isActiveStatus(t.status)
   );
 
   const today = new Date();

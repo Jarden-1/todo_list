@@ -15,10 +15,17 @@ interface Argon2Module {
   verify(hash: string, password: string): Promise<boolean>;
 }
 
-function loadArgon2(): Argon2Module | null {
+// argon2 is an optional native dependency — load it lazily via dynamic import
+// so the app still boots on machines where it isn't installed (falls back to
+// scrypt). Using `await import()` instead of `eval("require")` avoids tripping
+// security scanners and works in both ESM and CommonJS modes.
+async function loadArgon2(): Promise<Argon2Module | null> {
   try {
-    const requireModule = eval("require") as NodeRequire;
-    return requireModule("argon2") as Argon2Module;
+    // @ts-expect-error — argon2 is an optional native dependency; it may not
+    // be installed, and its types are not present. The try/catch handles the
+    // missing module at runtime.
+    const mod = await import("argon2");
+    return mod as unknown as Argon2Module;
   } catch {
     return null;
   }
@@ -43,7 +50,7 @@ async function scryptKey(
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  const argon2 = loadArgon2();
+  const argon2 = await loadArgon2();
 
   if (argon2) {
     return argon2.hash(password, { type: argon2.argon2id });
@@ -71,7 +78,7 @@ export async function verifyPassword(
   passwordHash: string
 ): Promise<boolean> {
   if (passwordHash.startsWith("$argon2")) {
-    const argon2 = loadArgon2();
+    const argon2 = await loadArgon2();
     return argon2 ? argon2.verify(passwordHash, password) : false;
   }
 

@@ -32,6 +32,27 @@ export function escapeAttribute(value: string) {
   return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
+// Only allow safe URL protocols in markdown links/images. Anything else
+// (javascript:, data:, vbscript:, etc.) is neutralized to "#" to prevent XSS
+// via clickable href attributes. Relative URLs (/, #, ?) are also allowed.
+const SAFE_HREF_PROTOCOLS = ["http:", "https:", "mailto:", "tel:"];
+const SAFE_HREF_PREFIXES = ["/", "#", "?"];
+
+function isSafeHref(href: string): boolean {
+  const trimmed = href.trim().toLowerCase();
+  if (SAFE_HREF_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return true;
+  try {
+    const protocol = new URL(trimmed).protocol;
+    return SAFE_HREF_PROTOCOLS.includes(protocol);
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeHref(href: string): string {
+  return isSafeHref(href) ? href : "#";
+}
+
 export function renderInlineMarkdown(value: string) {
   const pattern =
     /!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|~~([^~]+)~~|<u>([\s\S]*?)<\/u>|\*([^*]+)\*/g;
@@ -43,9 +64,9 @@ export function renderInlineMarkdown(value: string) {
     html += escapeHtml(value.slice(lastIndex, index));
 
     if (match[1] !== undefined && match[2] !== undefined) {
-      html += `<img src="${escapeAttribute(resolveImageSrc(match[2]))}" alt="${escapeAttribute(match[1])}" />`;
+      html += `<img src="${escapeAttribute(sanitizeHref(resolveImageSrc(match[2])))}" alt="${escapeAttribute(match[1])}" />`;
     } else if (match[3] !== undefined && match[4] !== undefined) {
-      html += `<a href="${escapeAttribute(match[4])}">${renderInlineMarkdown(match[3])}</a>`;
+      html += `<a href="${escapeAttribute(sanitizeHref(match[4]))}" rel="noopener noreferrer" target="_blank">${renderInlineMarkdown(match[3])}</a>`;
     } else if (match[5] !== undefined) {
       html += `<code>${escapeHtml(match[5])}</code>`;
     } else if (match[6] !== undefined) {

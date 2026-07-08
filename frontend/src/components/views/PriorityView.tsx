@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTodo } from "../../contexts/TodoContext";
 import { TodoCard } from "../TodoCard";
 import { TodoPriority } from "../../lib/types";
+import { isActiveStatus } from "../../lib/todoFilter";
 import { BarChart2 } from "lucide-react";
 import { sortTodosByDueTime } from "../../lib/todoSort";
 import { CollapsibleGroupHeader } from "../timeline/CollapsibleGroupHeader";
@@ -30,7 +31,7 @@ export function PriorityView({ selectedId, onSelect }: PriorityViewProps) {
   const [collapsed, setCollapsed] = useState<Set<TodoPriority>>(new Set());
 
   const activeTodos = todos.filter(
-    (t) => t.status !== "done" && t.status !== "cancelled"
+    (t) => isActiveStatus(t.status)
   );
 
   const hasAny = activeTodos.length > 0;

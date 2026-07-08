@@ -16,6 +16,8 @@ import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { sortTodosByDueTime } from "../../lib/todoSort";
 import type { Project } from "../../lib/types";
+import { isActiveStatus } from "../../lib/todoFilter";
+import { DEFAULT_PROJECT_COLOR } from "../../lib/constants";
 
 export interface ProjectsViewProps {
   selectedId: string | null;
@@ -134,9 +136,9 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
     ...projects.map((p) => ({
       id: p.id,
       name: p.name,
-      color: p.color ?? "#6366F1",
+      color: p.color ?? DEFAULT_PROJECT_COLOR,
       todos: todos.filter(
-        (t) => t.projectId === p.id && t.status !== "done" && t.status !== "cancelled"
+        (t) => t.projectId === p.id && isActiveStatus(t.status)
       ),
       doneTodos: todos.filter((t) => t.projectId === p.id && t.status === "done"),
     })),
@@ -145,7 +147,7 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
       name: "未分配项目",
       color: "#94A3B8",
       todos: todos.filter(
-        (t) => !t.projectId && t.status !== "done" && t.status !== "cancelled"
+        (t) => !t.projectId && isActiveStatus(t.status)
       ),
       doneTodos: todos.filter((t) => !t.projectId && t.status === "done"),
     },

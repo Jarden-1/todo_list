@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTodo } from "../contexts/TodoContext";
 import type { Todo } from "../lib/types";
+import { DEFAULT_PROJECT_COLOR } from "../lib/constants";
 import { cn } from "../lib/utils";
 import {
   Dialog,
@@ -57,7 +58,7 @@ export function TodoProjectMoveDialog({
       ...projects.map((project) => ({
         id: project.id as string | null,
         name: project.name,
-        color: project.color ?? "#6366F1",
+        color: project.color ?? DEFAULT_PROJECT_COLOR,
       })),
     ],
     [projects]

@@ -5,6 +5,8 @@ import { Todo } from "../lib/types";
 import { useTodo } from "../contexts/TodoContext";
 import { PriorityBadge, getPriorityStripeClass } from "./PriorityBadge";
 import { formatDueDate, isOverdue, isTodayDate } from "../lib/dateUtils";
+import { isActiveStatus } from "../lib/todoFilter";
+import { DEFAULT_PROJECT_COLOR } from "../lib/constants";
 import {
   CheckCircle2, Circle, Clock, AlertCircle, User,
 } from "lucide-react";
@@ -28,7 +30,7 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
   const completeTimerRef = useRef<number | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
   const project = getProjectById(todo.projectId);
-  const overdue = isOverdue(todo.dueAt) && todo.status !== "done" && todo.status !== "cancelled";
+  const overdue = isOverdue(todo.dueAt) && isActiveStatus(todo.status);
   const todayDue = isTodayDate(todo.dueAt);
   const isDone = todo.status === "done";
   const isCancelled = todo.status === "cancelled";
@@ -143,7 +145,7 @@ export function TodoCard({ todo, isSelected, onClick }: TodoCardProps) {
               <span className="flex items-center gap-1 text-[11px] text-muted-foreground min-w-0">
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: project.color ?? "#6366F1" }}
+                  style={{ backgroundColor: project.color ?? DEFAULT_PROJECT_COLOR }}
                 />
                 <span className="truncate">{project.name}</span>
               </span>

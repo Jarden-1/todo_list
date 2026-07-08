@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { ApiError } from "../../common/apiError";
+import { DEFAULT_TAG_COLOR } from "../../common/constants";
 import { getSoftDeleteTimestamps } from "../../common/softDelete";
 import { createEntityId } from "./ids";
 import { toTagDto } from "./todo.dto";
@@ -39,7 +40,7 @@ export class TagsService {
         id: createEntityId("tag"),
         userId,
         name,
-        color: input.color ?? "#6366F1",
+        color: input.color ?? DEFAULT_TAG_COLOR,
         createdAt: now,
         updatedAt: now
       }

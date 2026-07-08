@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { ApiError } from "../../common/apiError";
+import { DEFAULT_PROJECT_COLOR, DEFAULT_TAG_COLOR, DEFAULT_TIMEZONE } from "../../common/constants";
 import { getSoftDeleteTimestamps } from "../../common/softDelete";
 import { requireUserAiConfig } from "../settings/settings.service";
 import {
@@ -23,8 +24,6 @@ import {
 } from "./prompts";
 
 const AI_UNDO_TTL_MS = 5 * 60 * 1000;
-const DEFAULT_PROJECT_COLOR = "#6366F1";
-const DEFAULT_TAG_COLOR = "#6366F1";
 
 export interface TodoOrganizationResponse {
   // Primary (first) created todo — kept for backward compatibility.
@@ -63,7 +62,7 @@ function formatLocalTime(date: Date, timezone: string): string {
     }).format(date);
   } catch {
     return new Intl.DateTimeFormat("zh-CN", {
-      timeZone: "Asia/Shanghai",
+      timeZone: DEFAULT_TIMEZONE,
       dateStyle: "full",
       timeStyle: "medium",
       hour12: false

@@ -13,6 +13,7 @@ import { TodoSubtasksSection } from "./todo-detail/TodoSubtasksSection";
 import { TodoMetadataSection } from "./todo-detail/TodoMetadataSection";
 import { TodoTimestamps } from "./todo-detail/TodoTimestamps";
 import { polishMarkdown } from "../lib/aiApi";
+import { isActiveStatus } from "../lib/todoFilter";
 import { useAuth } from "../contexts/AuthContext";
 
 interface TodoDetailPanelProps {
@@ -204,7 +205,7 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
     }
   };
 
-  const overdue = isOverdue(todo.dueAt) && todo.status !== "done" && todo.status !== "cancelled";
+  const overdue = isOverdue(todo.dueAt) && isActiveStatus(todo.status);
   const openDuePicker = () => {
     const input = dueAtRef.current;
     if (!input) return;

@@ -42,6 +42,7 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import type { Todo } from "../../lib/types";
+import { DEFAULT_PROJECT_COLOR } from "../../lib/constants";
 
 interface CompletedViewProps {
   selectedId: string | null;
@@ -504,7 +505,7 @@ export function CompletedView({ selectedId, onSelect }: CompletedViewProps) {
                               <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
                                 <span
                                   className="w-1.5 h-1.5 rounded-full"
-                                  style={{ backgroundColor: project.color ?? "#6366F1" }}
+                                  style={{ backgroundColor: project.color ?? DEFAULT_PROJECT_COLOR }}
                                 />
                                 {project.name}
                               </span>

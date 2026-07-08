@@ -5,7 +5,6 @@ import { ApiError, toErrorResponse } from "../../common/apiError";
 import { requireAuth } from "../../common/auth";
 import { dataResponse } from "../../common/http";
 import { zodErrorToDetails } from "../../common/zod";
-import { config } from "../../config";
 import {
   attachFilesBodySchema,
   fileIdParamsSchema,
@@ -68,12 +67,7 @@ function installFilesErrorHandler(app: FastifyInstance): void {
     reply.status(500).send(
       toErrorResponse({
         code: "INTERNAL_SERVER_ERROR",
-        message:
-          config.NODE_ENV === "production"
-            ? "服务暂时不可用"
-            : error instanceof Error
-              ? error.message || "Internal server error"
-              : "Internal server error",
+        message: "服务暂时不可用，请稍后重试",
         details: {}
       })
     );

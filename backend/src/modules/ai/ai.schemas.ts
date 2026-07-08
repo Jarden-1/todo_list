@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_TIMEZONE } from "../../common/constants";
 
 export const todoPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
 export const dueAtPrecisionSchema = z.enum(["datetime", "day", "week", "none"]);
@@ -7,14 +8,14 @@ export const confidenceValueSchema = z.enum(["low", "medium", "high"]);
 export const todoOrganizationRequestSchema = z
   .object({
     input: z.string().trim().min(1).max(20000),
-    timezone: z.string().trim().min(1).max(100).default("Asia/Shanghai")
+    timezone: z.string().trim().min(1).max(100).default(DEFAULT_TIMEZONE)
   })
   .strict();
 
 export const markdownPolishRequestSchema = z
   .object({
     markdown: z.string().trim().min(1).max(1024 * 1024),
-    timezone: z.string().trim().min(1).max(100).default("Asia/Shanghai")
+    timezone: z.string().trim().min(1).max(100).default(DEFAULT_TIMEZONE)
   })
   .strict();
 

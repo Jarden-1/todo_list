@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTodo } from "../contexts/TodoContext";
 import { ViewType } from "../lib/types";
+import { DEFAULT_PROJECT_COLOR } from "../lib/constants";
 import { useTheme } from "../contexts/ThemeContext";
 import {
   Sun,
@@ -282,7 +283,7 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
                     >
                       <span
                         className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: project.color ?? "#6366F1" }}
+                        style={{ backgroundColor: project.color ?? DEFAULT_PROJECT_COLOR }}
                       />
                       <span className="flex-1 truncate">{project.name}</span>
                       {count > 0 && (

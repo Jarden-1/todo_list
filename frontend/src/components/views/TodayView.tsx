@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTodo } from "../../contexts/TodoContext";
 import { isOverdue, isTodayDate } from "../../lib/dateUtils";
+import { isActiveStatus } from "../../lib/todoFilter";
 import { Sun, AlertCircle, Flame } from "lucide-react";
 import { TodoTimelineGroup } from "../timeline/TodoTimelineGroup";
 
@@ -27,7 +28,7 @@ export function TodayView({ selectedId, onSelect }: TodayViewProps) {
   };
 
   const activeTodos = todos.filter(
-    (t) => t.status !== "done" && t.status !== "cancelled"
+    (t) => isActiveStatus(t.status)
   );
 
   const overdueTodos = activeTodos.filter(

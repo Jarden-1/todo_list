@@ -4,7 +4,6 @@ import { ZodError } from "zod";
 
 import { ApiError, toErrorResponse } from "../common/apiError";
 import { zodErrorToDetails } from "../common/zod";
-import { config } from "../config";
 
 function getFastifyValidationDetails(error: FastifyError): unknown {
   if (!error.validation) {
@@ -62,12 +61,10 @@ async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
     reply.status(500).send(
       toErrorResponse({
         code: "INTERNAL_SERVER_ERROR",
-        message:
-          config.NODE_ENV === "production"
-            ? "服务暂时不可用"
-            : error instanceof Error
-              ? error.message || "Internal server error"
-              : "Internal server error",
+        // Never leak raw error.message to the client — it can expose SQL
+        // fragments, file paths, or internal structure. Developers should
+        // read the server logs (request.log.error above) for details.
+        message: "服务暂时不可用，请稍后重试",
         details: {}
       })
     );

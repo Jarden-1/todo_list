@@ -21,7 +21,7 @@ const envSchema = z.object({
   SOFT_DELETE_RETENTION_DAYS: z.coerce.number().int().positive().default(3),
   WEB_PUSH_VAPID_PUBLIC_KEY: z.string().default(""),
   WEB_PUSH_VAPID_PRIVATE_KEY: z.string().default(""),
-  WEB_PUSH_SUBJECT: z.string().default("mailto:admin@example.com")
+  WEB_PUSH_SUBJECT: z.string().default("")
 });
 
 export const config = envSchema.parse(process.env);

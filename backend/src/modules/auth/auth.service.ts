@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { Prisma, type PrismaClient, type User } from "@prisma/client";
 
+import { DEFAULT_TIMEZONE } from "../../common/constants";
 import { authError, invalidCredentialsError, unauthenticatedError } from "./auth.errors";
 import { hashPassword, verifyPassword } from "./password";
 import {
@@ -11,7 +12,6 @@ import {
 } from "./session.service";
 import type { LoginInput, RegisterInput } from "./auth.types";
 
-const DEFAULT_TIMEZONE = "Asia/Shanghai";
 const DEFAULT_AI_ASSISTANT_PROMPT = "你是 SmartTodo 的 AI 待办助手。";
 
 type AuthUser = Pick<

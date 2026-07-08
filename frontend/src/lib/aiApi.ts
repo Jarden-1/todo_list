@@ -1,7 +1,11 @@
 import { apiRequest } from "./apiClient";
 import type { AiOrganizeResult, Todo, UndoRecord } from "./types";
 
-export function organizeTodo(input: string, timezone = "Asia/Shanghai") {
+// Use the browser's actual timezone rather than hardcoding "Asia/Shanghai" —
+// users in other regions would otherwise get wrong due-date inference.
+const DEFAULT_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+export function organizeTodo(input: string, timezone = DEFAULT_TIMEZONE) {
   return apiRequest<{
     todo: Todo;
     todos?: Todo[];
@@ -14,7 +18,7 @@ export function organizeTodo(input: string, timezone = "Asia/Shanghai") {
   });
 }
 
-export function polishMarkdown(markdown: string, timezone = "Asia/Shanghai") {
+export function polishMarkdown(markdown: string, timezone = DEFAULT_TIMEZONE) {
   return apiRequest<{ markdown: string }>("/ai/markdown-polish", {
     method: "POST",
     body: JSON.stringify({ markdown, timezone }),

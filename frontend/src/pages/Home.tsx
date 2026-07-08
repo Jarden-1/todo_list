@@ -16,6 +16,7 @@ import { useTodo } from "../contexts/TodoContext";
 import { isTodayDate } from "../lib/dateUtils";
 import { Sun, Clock, FolderOpen, BarChart2, CheckCircle2, Menu, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { isActiveStatus } from "../lib/todoFilter";
 import { useTransientScrollbar } from "../hooks/useTransientScrollbar";
 import { useDetailPanelLayout } from "../hooks/useDetailPanelLayout";
 
@@ -58,7 +59,7 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
   });
 
   const activeTodosCount = todos.filter(
-    (t) => t.status !== "done" && t.status !== "cancelled"
+    (t) => isActiveStatus(t.status)
   ).length;
 
   // Auto-select the first todo of a view when the user switches to it, so the
@@ -90,7 +91,7 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
       );
     } else {
       candidates = visible.filter(
-        (t) => t.status !== "done" && t.status !== "cancelled"
+        (t) => isActiveStatus(t.status)
       );
     }
     // Earliest due date first; todos without a due date sink to the bottom.
