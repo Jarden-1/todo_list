@@ -155,17 +155,8 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       if (todos.length === 0) return;
       const firstTodo = todos[0];
 
-      // Save recent assignees on success — each one independently.
-      if (assignees.length > 0) {
-        let updated = [...recentAssignees];
-        for (const name of assignees) {
-          const trimmed = name.trim();
-          if (!trimmed) continue;
-          updated = [trimmed, ...updated.filter((a) => a !== trimmed)].slice(0, MAX_RECENT_ASSIGNEES);
-        }
-        setRecentAssignees(updated);
-        persistRecentAssignees(updated);
-      }
+      // Recent assignees are already persisted the moment the user adds them
+      // via addAssignee() — no need to re-save here. Just reset the form.
 
       // Reset
       setInput("");
@@ -279,6 +270,21 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
 
   const toggleField = (key: FieldKey) => {
     setOpenField((prev) => (prev === key ? null : key));
+  };
+
+  // Add an assignee to the current list AND persist to recent history
+  // immediately — so the name survives a page refresh even if the user
+  // never submits the AI organize request.
+  const addAssignee = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setAssignees((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+    setRecentAssignees((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const updated = [trimmed, ...prev].slice(0, MAX_RECENT_ASSIGNEES);
+      persistRecentAssignees(updated);
+      return updated;
+    });
   };
 
   const expandComposer = () => {
@@ -399,10 +405,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          const trimmed = assigneeInput.trim();
-                          if (trimmed && !assignees.includes(trimmed)) {
-                            setAssignees((prev) => [...prev, trimmed]);
-                          }
+                          addAssignee(assigneeInput);
                           setAssigneeInput("");
                         }
                       }}
@@ -419,11 +422,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                           >
                             <button
                               type="button"
-                              onClick={() => {
-                                if (!assignees.includes(name)) {
-                                  setAssignees((prev) => [...prev, name]);
-                                }
-                              }}
+                              onClick={() => addAssignee(name)}
                               className="hover:text-primary"
                             >
                               {name}
