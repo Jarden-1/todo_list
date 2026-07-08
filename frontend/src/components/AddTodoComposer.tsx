@@ -286,11 +286,13 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
   };
 
   // Collapse the composer when focus leaves it entirely (clicked outside, not
-  // into a toolbar button or popover). Deferred via setTimeout so that focus
-  // has time to move to the next element — contentEditable blur fires before
-  // the next focus target is known, and toolbar buttons use mousedown preventDefault
-  // so they never truly "receive" focus.
-  const handleComposerBlur = () => {
+  // into a toolbar button or popover). Use relatedTarget for an immediate
+  // check — it points to the next focus target right when blur fires, so we
+  // don't have to guess 120ms later. The setTimeout is a fallback for cases
+  // where relatedTarget is null (clicking a non-focusable area).
+  const handleComposerBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget as Node | null;
+    if (next && composerRef.current?.contains(next)) return;
     if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
     collapseTimerRef.current = window.setTimeout(() => {
       const active = document.activeElement;
@@ -371,7 +373,13 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                       autoFocus
                       value={assignee}
                       onChange={(e) => setAssignee(e.target.value)}
-                      placeholder="姓名 / 邮箱"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          setOpenField(null);
+                        }
+                      }}
+                      placeholder="姓名 / 邮箱（Enter 确认）"
                       className="field-input w-full"
                     />
                     {recentAssignees.length > 0 && (
@@ -384,7 +392,10 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                           >
                             <button
                               type="button"
-                              onClick={() => setAssignee(name)}
+                              onClick={() => {
+                                setAssignee(name);
+                                setOpenField(null);
+                              }}
                               className="hover:text-primary"
                             >
                               {name}
@@ -571,9 +582,18 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                   }
                 >
                   <div className="space-y-2">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setOpenField(null)}
+                        className="text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
+                      >
+                        完成
+                      </button>
+                    </div>
                     <MarkdownEditor
                       value={description}
                       onChange={setDescription}

@@ -227,10 +227,13 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
           </div>
         </header>
 
-        {/* Add composer */}
-        <div className="px-4 md:px-6 pt-4 pb-3 flex-shrink-0">
-          <AddTodoComposer onTodoCreated={(id) => setSelectedTodoId(id)} />
-        </div>
+        {/* Add composer — hidden on the completed view, which has its own
+         * search box instead. */}
+        {currentView !== "completed" && (
+          <div className="px-4 md:px-6 pt-4 pb-3 flex-shrink-0">
+            <AddTodoComposer onTodoCreated={(id) => setSelectedTodoId(id)} />
+          </div>
+        )}
 
         {/* View content */}
         <div
