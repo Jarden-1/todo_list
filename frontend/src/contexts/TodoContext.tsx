@@ -78,7 +78,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [undoRecord, setUndoRecord] = useState<UndoRecord | null>(null);
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
-  const [currentView, setCurrentView] = useState<ViewType>("today");
+  const [currentView, setCurrentView] = useState<ViewType>("timeline");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

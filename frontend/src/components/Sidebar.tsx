@@ -39,6 +39,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: "timeline", label: "按时间分类", icon: Clock },
   {
     id: "today",
     label: "今日待办",
@@ -53,7 +54,6 @@ const NAV_ITEMS: NavItem[] = [
       return count > 0 ? count : null;
     },
   },
-  { id: "timeline", label: "按时间分类", icon: Clock },
   { id: "projects", label: "按项目分类", icon: FolderOpen },
   { id: "priority", label: "按优先级分类", icon: BarChart2 },
   {

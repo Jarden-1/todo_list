@@ -403,7 +403,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
               )}
             >
               <Plus className="h-4 w-4 flex-shrink-0 text-primary/70" />
-              <span className="truncate">一次写多个任务，AI 自动拆分 · 支持 Markdown</span>
+              <span className="truncate">支持 Markdown 排版 · 输入多待办 AI 自动拆分……</span>
             </button>
           </div>
         </div>
@@ -426,7 +426,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                   onChange={setInput}
                   textareaRef={textareaRef}
                   onKeyDown={handleKeyDown}
-                  placeholder="一次写多个任务，AI 自动拆分成独立待办 · 支持 Markdown 排版"
+                  placeholder="支持 Markdown 排版 · 输入多待办 AI 自动拆分……"
                   rows={3}
                   autoFocus
                   rich
