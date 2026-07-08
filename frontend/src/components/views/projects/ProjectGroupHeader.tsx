@@ -123,9 +123,17 @@ export function ProjectGroupHeader({
             </span>
             <div className="flex flex-shrink-0 items-center gap-2">
               <div className="flex items-center gap-1.5">
-                <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="w-16 h-1.5 bg-muted rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={Math.round(progress)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${group.name} 完成进度 ${group.doneCount}/${total}`}
+                  title={`${group.doneCount}/${total}（${Math.round(progress)}%）`}
+                >
                   <div
-                    className="h-full rounded-full transition-all"
+                    className="h-full rounded-full transition-all min-w-[2px]"
                     style={{ width: `${progress}%`, backgroundColor: group.color }}
                   />
                 </div>
