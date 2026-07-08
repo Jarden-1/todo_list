@@ -537,9 +537,15 @@ export class TodosService {
   }
 
   async completeTodo(userId: string, todoId: string) {
-    return this.updateTodo(userId, todoId, {
+    const todo = await this.updateTodo(userId, todoId, {
       status: "done"
     });
+    // Mark all unread notifications for this todo as read.
+    await this.prisma.notificationEvent.updateMany({
+      where: { userId, todoId, readAt: null, deletedAt: null },
+      data: { readAt: new Date() }
+    });
+    return todo;
   }
 
   async uncompleteTodo(userId: string, todoId: string) {
@@ -549,9 +555,15 @@ export class TodosService {
   }
 
   async cancelTodo(userId: string, todoId: string) {
-    return this.updateTodo(userId, todoId, {
+    const todo = await this.updateTodo(userId, todoId, {
       status: "cancelled"
     });
+    // Mark all unread notifications for this todo as read.
+    await this.prisma.notificationEvent.updateMany({
+      where: { userId, todoId, readAt: null, deletedAt: null },
+      data: { readAt: new Date() }
+    });
+    return todo;
   }
 
   async restoreTodo(userId: string, todoId: string, input: TodoRestoreInput) {

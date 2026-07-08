@@ -128,6 +128,12 @@ export async function listNotifications(
     deletedAt: null,
     ...(query.unread === true ? { readAt: null } : {}),
     ...(query.type ? { type: query.type } : {}),
+    // Hide notifications for todos that are done/cancelled — the user has
+    // already dealt with them, no point showing stale reminders.
+    todo: {
+      deletedAt: null,
+      status: { notIn: ["done", "cancelled"] }
+    },
     ...(cursor
       ? {
           OR: [

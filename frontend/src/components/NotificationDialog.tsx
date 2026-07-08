@@ -24,7 +24,12 @@ export function NotificationDialog({
 }: NotificationDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onDismiss()}>
-      <DialogContent className="max-w-[420px] rounded-2xl border-border/45 p-0 shadow-2xl" showCloseButton={false}>
+      <DialogContent
+        className="max-w-[420px] rounded-2xl border-border/45 p-0 shadow-2xl"
+        showCloseButton={false}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <div className="p-5">
           <DialogHeader className="gap-3 text-left">
             <div className="flex items-start gap-3">
