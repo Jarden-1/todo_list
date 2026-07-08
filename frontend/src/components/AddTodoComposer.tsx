@@ -1,7 +1,7 @@
 // SmartTodo - Smart Composer
 // Two modes: "compose" (Markdown editor + AI) and "fields" (structured form)
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Undo2 } from "lucide-react";
 import { useTodo } from "../contexts/TodoContext";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
@@ -27,7 +27,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const { addTodo, addTodoFromAi, undoLastAiCreate, projects } = useTodo();
+  const { addTodo, addTodoFromAi, undoLastAiCreate, undoRecord, projects } = useTodo();
 
   // Auto-resize textarea
   useEffect(() => {
@@ -73,8 +73,8 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       setFullscreen(false);
       return;
     }
+    // Only collapse — preserve input so the user doesn't lose work.
     setExpanded(false);
-    setInput("");
   };
 
   const handleAiOrganize = async () => {
@@ -259,6 +259,29 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
           onKeyDown={handleKeyDown}
           onAiOrganize={handleAiOrganize}
         />
+      )}
+
+      {/* Persistent undo entry — survives after the 6s toast disappears */}
+      {undoRecord && !aiLoading && (
+        <button
+          type="button"
+          onClick={() => {
+            void undoLastAiCreate()
+              .then((original) => {
+                if (!original) return;
+                setInput(original);
+                setExpanded(true);
+                setFullscreen(false);
+                setMode("compose");
+                toast.info("已撤销，原始输入已恢复");
+              })
+              .catch(() => toast.error("撤销失败，请稍后重试"));
+          }}
+          className="mt-1 flex items-center gap-1 px-3 py-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+        >
+          <Undo2 className="w-3 h-3" />
+          撤销上次 AI 创建
+        </button>
       )}
     </div>
   );

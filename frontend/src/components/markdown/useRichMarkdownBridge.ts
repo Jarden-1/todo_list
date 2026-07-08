@@ -29,6 +29,12 @@ export function useRichMarkdownBridge({
   // Remember the last caret/selection inside the editor so toolbar buttons
   // (which steal focus via mousedown) can restore it before running a command.
   const savedRangeRef = useRef<Range | null>(null);
+  // Track the last markdown value emitted by the editor itself. When value
+  // changes originate from the editor (typing, toolbar, etc.) the DOM is
+  // already in sync and must NOT be rewritten — rewriting innerHTML is what
+  // causes the caret to jump. Only external value changes (undo, programmatic
+  // set) should trigger a full re-render.
+  const lastEmittedValueRef = useRef<string>("");
 
   const rememberSelection = () => {
     const editor = richEditorRef.current;
@@ -43,7 +49,9 @@ export function useRichMarkdownBridge({
   const emitRichChange = () => {
     const editor = richEditorRef.current;
     if (!editor) return;
-    onChange(richHtmlToMarkdown(editor));
+    const markdown = richHtmlToMarkdown(editor);
+    lastEmittedValueRef.current = markdown;
+    onChange(markdown);
   };
 
   const renderRichFromMarkdown = (markdown: string, preserveCaret = false) => {
@@ -256,10 +264,14 @@ export function useRichMarkdownBridge({
     // composition). Rewriting innerHTML here is what makes the caret jump to
     // the start and breaks IME input in the detail panel.
     if (document.activeElement === editor || composingRef.current) return;
-    if (richHtmlToMarkdown(editor) === value) {
+    // If the value change originated from the editor itself (emitRichChange),
+    // the DOM is already in sync — only normalize, never full-rewrite.
+    if (value === lastEmittedValueRef.current) {
       normalizeRichEditor(false);
       return;
     }
+    // External value change (undo, programmatic set) — full re-render.
+    lastEmittedValueRef.current = value;
     renderRichFromMarkdown(value);
     // Intentionally only depends on [enabled, value]; the helper functions are
     // stable for this hook instance and re-running on their identity would
