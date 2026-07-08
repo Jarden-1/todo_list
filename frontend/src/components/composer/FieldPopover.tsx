@@ -1,8 +1,15 @@
-// Lightweight popover for composer field buttons. Avoids pulling in a full
-// floating-ui / radix dependency — the composer buttons only need a simple
-// "click to open, click outside / Esc to close" panel anchored below the
-// trigger.
-import { useEffect, useRef, type ReactNode } from "react";
+// Lightweight popover for composer field buttons. The panel is rendered into
+// document.body via a React portal so it escapes any `overflow: hidden`
+// ancestor (e.g. the composer's grid collapse container) and can never be
+// clipped by the card.
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 
 interface FieldPopoverProps {
@@ -14,6 +21,8 @@ interface FieldPopoverProps {
   className?: string;
 }
 
+const GAP_PX = 6; // matches Tailwind's mt-1.5 on the panel
+
 export function FieldPopover({
   open,
   onOpenChange,
@@ -22,13 +31,47 @@ export function FieldPopover({
   align = "start",
   className,
 }: FieldPopoverProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
+  // Recompute the popover's fixed position from the trigger's bounding rect.
+  // We re-run on open, on window scroll (capture phase so we catch ancestors
+  // that scroll too), and on resize. min-w-[220px] is the default panel
+  // width, so we anchor against 220 to keep the panel aligned with the
+  // trigger when `align="end"`.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const update = () => {
+      const t = triggerRef.current;
+      if (!t) return;
+      const r = t.getBoundingClientRect();
+      setPos({
+        top: r.bottom + GAP_PX,
+        left: align === "end" ? r.right - 220 : r.left,
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, align]);
+
+  // Outside-click + Escape to close. The popover is now in a portal, so we
+  // must check both the trigger wrapper and the popover element when
+  // deciding whether the click was "inside".
   useEffect(() => {
     if (!open) return;
     const handlePointerDown = (event: MouseEvent) => {
-      if (!containerRef.current) return;
-      if (containerRef.current.contains(event.target as Node)) return;
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
       onOpenChange(false);
     };
     const handleKeydown = (event: KeyboardEvent) => {
@@ -43,19 +86,25 @@ export function FieldPopover({
   }, [open, onOpenChange]);
 
   return (
-    <div ref={containerRef} className="relative">
-      {trigger}
-      {open && (
-        <div
-          className={cn(
-            "absolute top-full z-50 mt-1.5 min-w-[220px] rounded-xl border border-border/60 bg-popover p-3 text-popover-foreground shadow-xl",
-            align === "end" ? "right-0" : "left-0",
-            className
-          )}
-        >
-          {children}
-        </div>
-      )}
-    </div>
+    <>
+      <div ref={triggerRef} className="relative inline-block">
+        {trigger}
+      </div>
+      {open &&
+        pos !== null &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className={cn(
+              "fixed z-50 min-w-[220px] rounded-xl border border-border/60 bg-popover p-3 text-popover-foreground shadow-xl",
+              className,
+            )}
+            style={{ top: pos.top, left: pos.left }}
+          >
+            {children}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
