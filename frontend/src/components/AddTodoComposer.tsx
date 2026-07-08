@@ -49,7 +49,6 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const dueAtInputRef = useRef<HTMLInputElement>(null);
   const collapseTimerRef = useRef<number | null>(null);
   const unmountTimerRef = useRef<number | null>(null);
 
@@ -346,15 +345,6 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
     setExpanded(true);
   };
 
-  // Open the native datetime-local picker from the "截止 → 精确时刻" button
-  // in the composer — mirrors the detail panel's openDuePicker behaviour.
-  const openDuePicker = () => {
-    const input = dueAtInputRef.current;
-    if (!input) return;
-    input.focus();
-    input.showPicker?.();
-  };
-
   const handleComposerBlur = (event: React.FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget as Node | null;
     if (next && composerRef.current?.contains(next)) return;
@@ -548,8 +538,6 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                             setDueAt(next.dueAt);
                             setDueAtPrecision(next.dueAtPrecision);
                           }}
-                          datetimeRef={dueAtInputRef}
-                          onOpenDatetimePicker={openDuePicker}
                         />
                       </div>
                     </FieldPopover>

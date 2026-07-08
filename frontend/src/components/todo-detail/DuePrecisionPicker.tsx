@@ -1,9 +1,8 @@
 import type { DueAtPrecision } from "../../lib/types";
 import { DUE_PRECISION_OPTIONS } from "../../lib/todoOptions";
 import { endOfDayIso, endOfWeekIso } from "../../lib/dateUtils";
-import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
 import { cn } from "../../lib/utils";
-import { Calendar } from "lucide-react";
+import { DateTimePicker } from "./DateTimePicker";
 
 interface DuePrecisionPickerProps {
   /** Current resolved dueAt ISO string (placeholder for day/week), or null. */
@@ -12,9 +11,6 @@ interface DuePrecisionPickerProps {
   /** Emits the new dueAt + precision together so they never drift apart. */
   onChange: (next: { dueAt: string | null; dueAtPrecision: DueAtPrecision }) => void;
   overdue?: boolean;
-  /** Optional ref + click handler for the datetime-local input (detail panel uses it). */
-  datetimeRef?: React.RefObject<HTMLInputElement | null>;
-  onOpenDatetimePicker?: () => void;
 }
 
 /**
@@ -23,17 +19,16 @@ interface DuePrecisionPickerProps {
  * the precision logic lives in exactly one place — keeping dueAt and
  * dueAtPrecision consistent everywhere.
  *
- * For day/week precision the dueAt is stored as a resolved ISO placeholder
- * (23:59 of the day / Sunday) so sorting and overdue detection keep working,
- * while the UI hides the time.
+ * The actual date/time UI is the self-drawn DateTimePicker (no native
+ * `<input type="date">` + `.showPicker()` dance). Switching to "精确时刻"
+ * lands directly on the calendar + hour/minute wheel in a single step; no
+ * intermediate "click again to add a time" modal.
  */
 export function DuePrecisionPicker({
   dueAt,
   precision,
   onChange,
   overdue = false,
-  datetimeRef,
-  onOpenDatetimePicker,
 }: DuePrecisionPickerProps) {
   const handlePrecisionChange = (next: DueAtPrecision) => {
     if (next === precision) return;
@@ -76,52 +71,35 @@ export function DuePrecisionPicker({
       </div>
 
       {precision === "datetime" && (
-        <div className="relative mt-1.5">
-          <button
-            type="button"
-            onClick={onOpenDatetimePicker}
-            className={cn(
-              "w-full field-input text-left flex items-center justify-between text-xs",
-              overdue && "border-destructive/50 text-destructive"
-            )}
-          >
-            <span>{toDatetimeLocalValue(dueAt).replace("T", " ").replace(/-/g, "/") || "点击选择精确时间"}</span>
-            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-          </button>
-          {/* Hidden input — kept in the DOM so we can call .showPicker() on it
-              when the user clicks the visible button above. */}
-          <input
-            ref={datetimeRef}
-            type="datetime-local"
-            value={toDatetimeLocalValue(dueAt)}
-            onChange={(event) =>
+        <div className="mt-1.5">
+          <DateTimePicker
+            mode="datetime"
+            value={dueAt}
+            overdue={overdue}
+            onChange={(next) =>
               onChange({
-                dueAt: event.target.value ? new Date(event.target.value).toISOString() : null,
-                dueAtPrecision: event.target.value ? "datetime" : "none",
+                dueAt: next.iso,
+                dueAtPrecision: next.iso ? "datetime" : "none",
               })
             }
-            className="absolute inset-0 opacity-0 pointer-events-none w-full"
           />
         </div>
       )}
 
       {precision === "day" && (
-        <input
-          type="date"
-          value={toDatetimeLocalValue(dueAt).slice(0, 10)}
-          onChange={(event) => {
-            if (!event.target.value) {
-              onChange({ dueAt: null, dueAtPrecision: "none" });
-              return;
+        <div className="mt-1.5">
+          <DateTimePicker
+            mode="date"
+            value={dueAt}
+            overdue={overdue}
+            onChange={(next) =>
+              onChange({
+                dueAt: next.iso,
+                dueAtPrecision: next.iso ? "day" : "none",
+              })
             }
-            const picked = new Date(`${event.target.value}T23:59:00`);
-            onChange({ dueAt: picked.toISOString(), dueAtPrecision: "day" });
-          }}
-          className={cn(
-            "field-input mt-1.5 cursor-pointer",
-            overdue && "border-destructive/50 text-destructive"
-          )}
-        />
+          />
+        </div>
       )}
 
       {precision === "week" && (

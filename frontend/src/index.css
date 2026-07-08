@@ -147,3 +147,15 @@
 .smart-composer-card > .grid > .overflow-hidden {
   min-height: 0;
 }
+
+/* Wheel-style time picker scroller — used by DateTimePicker. The track is
+   draggable, but the native scrollbar would eat into the visible 140px
+   column. Hide it cross-browser; the centre band still anchors the
+   selection visually. */
+.wheel-scroller {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;        /* legacy Edge / IE */
+}
+.wheel-scroller::-webkit-scrollbar {
+  display: none;                   /* Chromium / Safari */
+}

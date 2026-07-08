@@ -38,7 +38,6 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
   const [assigneeValue, setAssigneeValue] = useState(todo.assignee ?? "");
   const [editingAssignee, setEditingAssignee] = useState(false);
   const [markdownPolishing, setMarkdownPolishing] = useState(false);
-  const dueAtRef = useRef<HTMLInputElement>(null);
   const detailScroll = useTransientScrollbar<HTMLDivElement>();
 
   // Debounced markdown persistence. Typing only updates local state; the API
@@ -181,37 +180,7 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
     }
   };
 
-  const handlePostpone = async (days: number) => {
-    const base = todo.dueAt ? new Date(todo.dueAt) : new Date();
-    const newDate = new Date(base);
-    newDate.setDate(newDate.getDate() + days);
-    // Quick-postpone is a day-level action (明天/下周/两周后). Keep the original
-    // precision when it was exact; otherwise treat it as day precision (23:59
-    // placeholder) so dueAt and dueAtPrecision stay consistent.
-    const keepExact = (todo.dueAtPrecision ?? "datetime") === "datetime";
-    if (keepExact) {
-      newDate.setHours(base.getHours(), base.getMinutes(), 0, 0);
-    } else {
-      newDate.setHours(23, 59, 0, 0);
-    }
-    try {
-      await updateTodo(todo.id, {
-        dueAt: newDate.toISOString(),
-        dueAtPrecision: keepExact ? "datetime" : "day",
-      });
-      toast.success(`已延期至 ${newDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "延期失败");
-    }
-  };
-
   const overdue = isOverdue(todo.dueAt) && isActiveStatus(todo.status);
-  const openDuePicker = () => {
-    const input = dueAtRef.current;
-    if (!input) return;
-    input.focus();
-    input.showPicker?.();
-  };
 
   const openMarkdownFullscreen = () => {
     setMarkdownFullscreen(true);
@@ -301,7 +270,6 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
           projects={projects}
           assigneeValue={assigneeValue}
           editingAssignee={editingAssignee}
-          dueAtRef={dueAtRef}
           overdue={overdue}
           onUpdate={(updates) => {
             void updateTodo(todo.id, updates).catch((error) => {
@@ -311,8 +279,6 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
           onAssigneeValueChange={setAssigneeValue}
           onEditingAssigneeChange={setEditingAssignee}
           onAssigneeSave={handleAssigneeSave}
-          onOpenDuePicker={openDuePicker}
-          onPostpone={handlePostpone}
         />
 
         <TodoTimestamps todo={todo} />
