@@ -72,6 +72,13 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
 
   useEffect(() => {
     if (viewAutoSelectedRef.current) return;
+    // "按项目分类" 和 "已完成" 不自动展开侧边栏 — 项目分类用户通常想先
+    // 浏览项目组结构,已完成列表则偏向快速扫一眼,展开侧边栏反而打扰。
+    if (currentView === "projects" || currentView === "completed") {
+      setSelectedTodoId(null);
+      viewAutoSelectedRef.current = true;
+      return;
+    }
     const visible = todos.filter((t) => !t.deletedAt);
     let candidates = visible;
     if (currentView === "today") {
@@ -80,10 +87,6 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
           t.status !== "done" &&
           t.status !== "cancelled" &&
           isTodayDate(t.dueAt)
-      );
-    } else if (currentView === "completed") {
-      candidates = visible.filter(
-        (t) => t.status === "done" || t.status === "cancelled"
       );
     } else {
       candidates = visible.filter(
