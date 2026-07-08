@@ -370,7 +370,6 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                       <User className="w-3 h-3" /> 参与人
                     </label>
                     <input
-                      autoFocus
                       value={assignee}
                       onChange={(e) => setAssignee(e.target.value)}
                       onKeyDown={(e) => {
