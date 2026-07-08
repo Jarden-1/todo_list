@@ -33,7 +33,7 @@ export function useTransientScrollbar<T extends HTMLElement>() {
     };
   }, []);
 
-  return { ref: setRef, onScroll: showScrollbar };
+  return { ref: setRef, refObject: elementRef, onScroll: showScrollbar };
 }
 
 export function useAutoHideScrollbars() {

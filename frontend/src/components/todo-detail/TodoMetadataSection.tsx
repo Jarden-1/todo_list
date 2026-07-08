@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { Calendar, Check, Edit3, Flag, Folder, User, X } from "lucide-react";
 import { toast } from "sonner";
 import type { DueAtPrecision, Project, Todo, TodoPriority } from "../../lib/types";
@@ -33,6 +33,10 @@ interface TodoMetadataSectionProps {
   onAssigneeValueChange: (value: string) => void;
   onEditingAssigneeChange: (editing: boolean) => void;
   onAssigneeSave: () => void;
+  /** Owner container for the popovers inside this section. Clicks inside
+   *  the container ref are treated as "still inside" so they don't dismiss
+   *  the popover (mirrors the composer's containerRef pattern). */
+  containerRef?: RefObject<HTMLElement | null>;
 }
 
 export function TodoMetadataSection({
@@ -45,6 +49,7 @@ export function TodoMetadataSection({
   onAssigneeValueChange,
   onEditingAssigneeChange,
   onAssigneeSave,
+  containerRef,
 }: TodoMetadataSectionProps) {
   const { addProject } = useTodo();
   const [creatingProject, setCreatingProject] = useState(false);
@@ -225,8 +230,8 @@ export function TodoMetadataSection({
         )}
       </div>
 
-      {/* Due — 4-tab precision editor; the active tab shows its value inline
-          (e.g. "精确时刻 07/08 22:39") so no separate summary row is needed. */}
+      {/* Due — 4-tab precision editor; the date/time picker is hidden by
+          default and opens in a popover when the user clicks a tab. */}
       <div>
         <label className="detail-label flex items-center gap-1">
           <Calendar className="w-3 h-3" />
@@ -238,6 +243,8 @@ export function TodoMetadataSection({
             precision={precision}
             overdue={overdue}
             showValueInActiveTab
+            popoverOnTabClick
+            containerRef={containerRef}
             onChange={(next) => onUpdate(next)}
           />
         </div>

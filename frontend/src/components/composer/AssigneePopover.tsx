@@ -4,6 +4,7 @@ import { User, X } from "lucide-react";
 import type { RefObject } from "react";
 import { FieldPopover } from "./FieldPopover";
 import { FieldButton } from "./FieldButton";
+import { PopoverConfirmButton } from "./PopoverConfirmButton";
 
 interface AssigneePopoverProps {
   open: boolean;
@@ -48,9 +49,12 @@ export function AssigneePopover({
       }
     >
       <div className="space-y-2">
-        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-          <User className="w-3 h-3" /> 参与人
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <User className="w-3 h-3" /> 参与人
+          </label>
+          <PopoverConfirmButton onClick={() => onOpenChange(false)} />
+        </div>
         {assignees.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
             {assignees.map((name, index) => (

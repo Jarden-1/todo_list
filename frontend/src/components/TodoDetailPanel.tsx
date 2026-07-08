@@ -271,6 +271,7 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
           assigneeValue={assigneeValue}
           editingAssignee={editingAssignee}
           overdue={overdue}
+          containerRef={detailScroll.refObject}
           onUpdate={(updates) => {
             void updateTodo(todo.id, updates).catch((error) => {
               toast.error(error instanceof Error ? error.message : "待办保存失败");

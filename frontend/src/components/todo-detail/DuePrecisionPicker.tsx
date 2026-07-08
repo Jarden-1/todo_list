@@ -1,9 +1,11 @@
+import { useState, type RefObject } from "react";
 import type { DueAtPrecision } from "../../lib/types";
 import { DUE_PRECISION_OPTIONS } from "../../lib/todoOptions";
 import { endOfDayIso, endOfWeekIso } from "../../lib/dateUtils";
 import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
 import { cn } from "../../lib/utils";
 import { DateTimePicker } from "./DateTimePicker";
+import { FieldPopover } from "../composer/FieldPopover";
 
 interface DuePrecisionPickerProps {
   /** Current resolved dueAt ISO string (placeholder for day/week), or null. */
@@ -20,6 +22,22 @@ interface DuePrecisionPickerProps {
    * compact inside the floating panel.
    */
   showValueInActiveTab?: boolean;
+  /**
+   * Fires AFTER the user clicks "确定" in the embedded DateTimePicker
+   * (i.e. only on the commit path, never on a tab switch). Lets the
+   * composer close its popover on confirm without confusing tab switches
+   * with explicit commits.
+   */
+  onAfterConfirm?: () => void;
+  /**
+   * When `showValueInActiveTab` is true, the date/time picker is hidden
+   * by default and opens in a popover only when the user clicks the
+   * "精确时刻" or "某天" tab. Defaults to true on the detail panel.
+   * The composer popover keeps it false so the picker stays inline.
+   */
+  popoverOnTabClick?: boolean;
+  /** Owner container used by FieldPopover to decide what's "inside". */
+  containerRef?: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -39,53 +57,115 @@ export function DuePrecisionPicker({
   onChange,
   overdue = false,
   showValueInActiveTab = false,
+  onAfterConfirm,
+  popoverOnTabClick = false,
+  containerRef,
 }: DuePrecisionPickerProps) {
+  // Detail panel: the picker is hidden by default. Clicking datetime/day
+  // opens a popover; clicking the same tab again reopens it. week/none
+  // never open the popover (no concrete value to pick).
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const handlePrecisionChange = (next: DueAtPrecision) => {
-    if (next === precision) return;
+    if (next === precision) {
+      // Re-clicking the active tab re-opens the picker (datetime/day only).
+      if (popoverOnTabClick && (next === "datetime" || next === "day")) {
+        setPickerOpen((open) => !open);
+      }
+      return;
+    }
     if (next === "none") {
       onChange({ dueAt: null, dueAtPrecision: "none" });
+      setPickerOpen(false);
       return;
     }
     if (next === "week") {
       onChange({ dueAt: endOfWeekIso(), dueAtPrecision: "week" });
+      setPickerOpen(false);
       return;
     }
     if (next === "day") {
       const base = dueAt ? new Date(dueAt) : new Date();
       onChange({ dueAt: endOfDayIso(base), dueAtPrecision: "day" });
+      if (popoverOnTabClick) setPickerOpen(true);
       return;
     }
     // datetime
     const base = dueAt ? new Date(dueAt) : new Date();
     onChange({ dueAt: base.toISOString(), dueAtPrecision: "datetime" });
+    if (popoverOnTabClick) setPickerOpen(true);
   };
+
+  // The 4 precision tabs — shared by both layouts. In popover mode the
+  // tabs double as the popover trigger: clicking inside a tab does NOT
+  // close the popover (FieldPopover detects target inside trigger).
+  const tabs = (
+    <div className="flex flex-wrap gap-1">
+      {DUE_PRECISION_OPTIONS.map((option) => {
+        const isActive = precision === option.value;
+        const valueText =
+          isActive && showValueInActiveTab
+            ? tabValueText(option.value, dueAt)
+            : null;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => handlePrecisionChange(option.value)}
+            className={cn(
+              "rounded-md border px-2 py-1 text-[11px] transition-colors",
+              isActive
+                ? overdue
+                  ? "border-destructive/50 bg-destructive/10 text-destructive font-medium"
+                  : "border-primary/50 bg-primary/10 text-primary font-medium"
+                : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            )}
+          >
+            {valueText ? `${option.label} ${valueText}` : option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // The picker body — datetime/day modes render the same DateTimePicker
+  // with the current precision implied by the active tab.
+  const pickerBody = (precision === "datetime" || precision === "day") && (
+    <DateTimePicker
+      mode={precision === "datetime" ? "datetime" : "date"}
+      value={dueAt}
+      overdue={overdue}
+      onConfirm={(next) => {
+        onChange({
+          dueAt: next.iso,
+          dueAtPrecision: next.iso ? precision : "none",
+        });
+        onAfterConfirm?.();
+        setPickerOpen(false);
+      }}
+    />
+  );
+
+  // Popover layout (detail panel): tabs are the trigger, picker rides in
+  // the popover body. Composer popover layout: tabs + picker both live
+  // inline (the outer FieldPopover already handles the floating layer).
+  if (popoverOnTabClick) {
+    return (
+      <FieldPopover
+        open={pickerOpen && (precision === "datetime" || precision === "day")}
+        onOpenChange={setPickerOpen}
+        containerRef={containerRef}
+        className="min-w-[320px]"
+        trigger={tabs}
+      >
+        {pickerBody}
+      </FieldPopover>
+    );
+  }
 
   return (
     <>
-      <div className="flex flex-wrap gap-1">
-        {DUE_PRECISION_OPTIONS.map((option) => {
-          const isActive = precision === option.value;
-          const valueText =
-            isActive && showValueInActiveTab
-              ? tabValueText(option.value, dueAt)
-              : null;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => handlePrecisionChange(option.value)}
-              className={cn(
-                "rounded-md border px-2 py-1 text-[11px] transition-colors",
-                isActive
-                  ? "border-primary/50 bg-primary/10 text-primary font-medium"
-                  : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-              )}
-            >
-              {valueText ? `${option.label} ${valueText}` : option.label}
-            </button>
-          );
-        })}
-      </div>
+      {tabs}
 
       {precision === "datetime" && (
         <div className="mt-1.5">
@@ -93,12 +173,13 @@ export function DuePrecisionPicker({
             mode="datetime"
             value={dueAt}
             overdue={overdue}
-            onConfirm={(next) =>
+            onConfirm={(next) => {
               onChange({
                 dueAt: next.iso,
                 dueAtPrecision: next.iso ? "datetime" : "none",
-              })
-            }
+              });
+              onAfterConfirm?.();
+            }}
           />
         </div>
       )}
@@ -109,12 +190,13 @@ export function DuePrecisionPicker({
             mode="date"
             value={dueAt}
             overdue={overdue}
-            onConfirm={(next) =>
+            onConfirm={(next) => {
               onChange({
                 dueAt: next.iso,
                 dueAtPrecision: next.iso ? "day" : "none",
-              })
-            }
+              });
+              onAfterConfirm?.();
+            }}
           />
         </div>
       )}

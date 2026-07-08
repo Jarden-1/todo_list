@@ -12,6 +12,7 @@ import { FieldPopover } from "./composer/FieldPopover";
 import { FieldButton } from "./composer/FieldButton";
 import { AssigneePopover } from "./composer/AssigneePopover";
 import { ProjectPopover, NEW_PROJECT_VALUE } from "./composer/ProjectPopover";
+import { PopoverConfirmButton } from "./composer/PopoverConfirmButton";
 import { DuePrecisionPicker } from "./todo-detail/DuePrecisionPicker";
 import { ProjectDeleteDialog } from "./ProjectDeleteDialog";
 import { PRIORITY_OPTIONS } from "../lib/todoOptions";
@@ -330,6 +331,8 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
     }
     setIsCreatingProject(false);
     setProjectId(value);
+    // 不要在这里 closeField() —— 用户期望选完项目后还能继续调整其他字段,
+    // 由 popover 里的"确定"按钮统一关闭。
   };
 
   const hasComposeInput = input.trim().length > 0;
@@ -488,9 +491,12 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                       }
                     >
                       <div className="space-y-2">
-                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                          <Flag className="w-3 h-3" /> 优先级
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                            <Flag className="w-3 h-3" /> 优先级
+                          </label>
+                          <PopoverConfirmButton onClick={closeField} />
+                        </div>
                         <div className="flex gap-1.5">
                           {PRIORITY_OPTIONS.map((option) => (
                             <button
@@ -538,6 +544,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                             setDueAt(next.dueAt);
                             setDueAtPrecision(next.dueAtPrecision);
                           }}
+                          onAfterConfirm={closeField}
                         />
                       </div>
                     </FieldPopover>
@@ -562,13 +569,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                           <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                             <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
                           </label>
-                          <button
-                            type="button"
-                            onClick={closeField}
-                            className="text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
-                          >
-                            完成
-                          </button>
+                          <PopoverConfirmButton onClick={closeField} />
                         </div>
                         <MarkdownEditor
                           value={description}
