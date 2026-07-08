@@ -19,7 +19,8 @@
   /* Smart composer */
   .smart-composer-card {
     max-width: 100%;
-    overflow: hidden;
+    /* overflow must stay visible so field popovers (absolute-positioned below
+     * the bottom button row) can render outside the rounded card boundary. */
   }
 
   /* App shell */
