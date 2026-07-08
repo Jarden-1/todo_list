@@ -269,31 +269,34 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
                   <div
                     key={project.id}
                     className={cn(
-                      "group/proj-item nav-item w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all cursor-pointer",
+                      "group/proj-item nav-item w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all",
                       isFiltered
                         ? "nav-item-active font-medium"
                         : "text-sidebar-foreground/65 hover:bg-white/24 dark:hover:bg-white/5"
                     )}
-                    onClick={() => handleProjectClick(project.id)}
                   >
-                    <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: project.color ?? "#6366F1" }}
-                    />
-                    <span className="flex-1 text-left truncate">{project.name}</span>
-                    {count > 0 && (
-                      <span className={cn(
-                        "text-[10px]",
-                        isFiltered ? "text-sidebar-foreground" : "text-sidebar-foreground/48"
-                      )}>
-                        {count}
-                      </span>
-                    )}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget(project);
-                      }}
+                      type="button"
+                      onClick={() => handleProjectClick(project.id)}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: project.color ?? "#6366F1" }}
+                      />
+                      <span className="flex-1 truncate">{project.name}</span>
+                      {count > 0 && (
+                        <span className={cn(
+                          "text-[10px]",
+                          isFiltered ? "text-sidebar-foreground" : "text-sidebar-foreground/48"
+                        )}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(project)}
                       className="flex-shrink-0 opacity-0 group-hover/proj-item:opacity-100 p-0.5 rounded text-sidebar-foreground/40 hover:text-destructive transition-all"
                       aria-label={`删除项目 ${project.name}`}
                       title="删除项目"

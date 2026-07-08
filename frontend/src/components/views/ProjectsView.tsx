@@ -241,6 +241,9 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
         const isCollapsed = collapsed.has(group.id);
         const total = group.todos.length + group.doneTodos.length;
         const progress = total > 0 ? (group.doneTodos.length / total) * 100 : 0;
+        const projectData = group.id !== "unassigned"
+          ? projects.find((p) => p.id === group.id) ?? null
+          : null;
 
         return (
           <section
@@ -343,7 +346,7 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
                         ? "全选本组"
                         : "选择"}
                   </button>
-                  {group.id !== "unassigned" && (
+                  {projectData && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -355,21 +358,13 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            const proj = projects.find((p) => p.id === group.id);
-                            if (proj) startRename(proj);
-                          }}
-                        >
+                        <DropdownMenuItem onClick={() => startRename(projectData)}>
                           <Edit3 className="w-3.5 h-3.5 mr-2" />
                           重命名
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
-                          onClick={() => {
-                            const proj = projects.find((p) => p.id === group.id);
-                            if (proj) setDeleteTarget(proj);
-                          }}
+                          onClick={() => setDeleteTarget(projectData)}
                         >
                           <Trash2 className="w-3.5 h-3.5 mr-2" />
                           删除项目

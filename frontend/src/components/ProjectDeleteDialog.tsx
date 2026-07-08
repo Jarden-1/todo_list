@@ -8,7 +8,7 @@ import {
   AlertDialogCancel,
 } from "./ui/alert-dialog";
 import { FolderInput, Trash2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Project } from "../lib/types";
 import { cn } from "../lib/utils";
 
@@ -29,6 +29,12 @@ export function ProjectDeleteDialog({
 }: ProjectDeleteDialogProps) {
   const [mode, setMode] = useState<"move" | "delete">("move");
   const [deleting, setDeleting] = useState(false);
+
+  // Reset mode every time the dialog opens so a previous "delete" choice
+  // doesn't carry over to the next project.
+  useEffect(() => {
+    if (open) setMode("move");
+  }, [open]);
 
   const handleConfirm = async () => {
     setDeleting(true);
@@ -54,10 +60,7 @@ export function ProjectDeleteDialog({
               </p>
               {todoCount > 0 && (
                 <div className="space-y-2">
-                  <label
-                    className="flex items-start gap-2.5 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-muted/40 transition-colors"
-                    onClick={() => setMode("move")}
-                  >
+                  <label className="flex items-start gap-2.5 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-muted/40 transition-colors">
                     <input
                       type="radio"
                       name="deleteMode"
@@ -75,10 +78,7 @@ export function ProjectDeleteDialog({
                       </p>
                     </div>
                   </label>
-                  <label
-                    className="flex items-start gap-2.5 rounded-lg border border-destructive/30 p-3 cursor-pointer hover:bg-destructive/5 transition-colors"
-                    onClick={() => setMode("delete")}
-                  >
+                  <label className="flex items-start gap-2.5 rounded-lg border border-destructive/30 p-3 cursor-pointer hover:bg-destructive/5 transition-colors">
                     <input
                       type="radio"
                       name="deleteMode"
