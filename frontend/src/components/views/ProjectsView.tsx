@@ -5,7 +5,7 @@ import { useTodo } from "../../contexts/TodoContext";
 import { TodoCard } from "../TodoCard";
 import { TodoProjectMoveDialog } from "../TodoProjectMoveDialog";
 import { ProjectDeleteDialog } from "../ProjectDeleteDialog";
-import { CheckSquare, FolderInput, Square } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronRight, FolderInput, Square } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { sortTodosByDueTime } from "../../lib/todoSort";
@@ -24,6 +24,7 @@ export interface ProjectsViewProps {
 export function ProjectsView({ selectedId, onSelect, filterProjectId }: ProjectsViewProps) {
   const { todos, projects, addProject, deleteProject, updateProject } = useTodo();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [expandedDone, setExpandedDone] = useState<Set<string>>(new Set());
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -36,6 +37,15 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
 
   const toggleCollapse = (id: string) => {
     setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleDoneExpanded = (id: string) => {
+    setExpandedDone((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -247,7 +257,7 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
 
             {!isCollapsed && (
               <div className="space-y-2 pl-5 pt-1">
-                {group.todos.length === 0 ? (
+                {group.todos.length === 0 && group.doneTodos.length === 0 ? (
                   <p className="py-4 text-center text-xs text-muted-foreground">暂无待办</p>
                 ) : (
                   sortTodosByDueTime(group.todos).map((todo) => {
@@ -289,6 +299,39 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
                       </div>
                     );
                   })
+                )}
+
+                {/* Done todos — collapsed by default to keep the view focused
+                    on active items, but revealed so the 8/9 count matches
+                    what's actually visible. */}
+                {group.doneTodos.length > 0 && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleDoneExpanded(group.id)}
+                      className="flex w-full items-center gap-1.5 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      aria-expanded={expandedDone.has(group.id)}
+                    >
+                      {expandedDone.has(group.id) ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                      已完成 ({group.doneTodos.length})
+                    </button>
+                    {expandedDone.has(group.id) && (
+                      <div className="mt-1 space-y-2 opacity-70">
+                        {group.doneTodos.map((todo) => (
+                          <TodoCard
+                            key={todo.id}
+                            todo={todo}
+                            isSelected={!selectionMode && selectedId === todo.id}
+                            onClick={() => onSelect(todo.id)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
