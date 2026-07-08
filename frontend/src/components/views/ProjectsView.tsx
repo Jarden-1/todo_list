@@ -4,10 +4,18 @@ import { useMemo, useState } from "react";
 import { useTodo } from "../../contexts/TodoContext";
 import { TodoCard } from "../TodoCard";
 import { TodoProjectMoveDialog } from "../TodoProjectMoveDialog";
-import { CheckSquare, ChevronDown, ChevronRight, FolderInput, Plus, Square, X } from "lucide-react";
+import { ProjectDeleteDialog } from "../ProjectDeleteDialog";
+import { CheckSquare, ChevronDown, ChevronRight, Edit3, FolderInput, MoreHorizontal, Plus, Square, Trash2, X, Check } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { sortTodosByDueTime } from "../../lib/todoSort";
+import type { Project } from "../../lib/types";
 
 export interface ProjectsViewProps {
   selectedId: string | null;
@@ -16,13 +24,17 @@ export interface ProjectsViewProps {
 }
 
 export function ProjectsView({ selectedId, onSelect, filterProjectId }: ProjectsViewProps) {
-  const { todos, projects, addProject } = useTodo();
+  const { todos, projects, addProject, deleteProject, updateProject } = useTodo();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTodoIds, setSelectedTodoIds] = useState<Set<string>>(new Set());
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
 
   const toggleCollapse = (id: string) => {
     setCollapsed((prev) => {
@@ -44,6 +56,45 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "项目创建失败");
       }
+    }
+  };
+
+  const startRename = (project: Project) => {
+    setRenamingId(project.id);
+    setRenameValue(project.name);
+  };
+
+  const handleRenameConfirm = async () => {
+    if (!renamingId) return;
+    const name = renameValue.trim();
+    if (!name) {
+      setRenamingId(null);
+      return;
+    }
+    setSavingRename(true);
+    try {
+      await updateProject(renamingId, { name });
+      toast.success("项目已重命名");
+      setRenamingId(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "重命名失败");
+    } finally {
+      setSavingRename(false);
+    }
+  };
+
+  const handleDeleteConfirm = async (mode: "move" | "delete") => {
+    if (!deleteTarget) return;
+    try {
+      await deleteProject(deleteTarget.id, mode);
+      toast.success(
+        mode === "delete"
+          ? `项目「${deleteTarget.name}」及其待办已删除`
+          : `项目「${deleteTarget.name}」已删除，待办已移到未分配`
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除项目失败");
+      throw error;
     }
   };
 
@@ -199,52 +250,135 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
           >
             {/* Project header */}
             <div className="flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted/45 transition-colors">
-              <button
-                type="button"
-                onClick={() => toggleCollapse(group.id)}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
-              >
-                <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: group.color }}
-                />
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
-                  {group.name}
-                </span>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${progress}%`, backgroundColor: group.color }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      {group.doneTodos.length}/{total}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">
-                    {group.todos.length} 未完成
-                  </span>
-                  {isCollapsed ? (
-                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                  )}
+              {renamingId === group.id ? (
+                /* Inline rename input */
+                <div className="flex flex-1 items-center gap-1.5">
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: group.color }}
+                  />
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void handleRenameConfirm();
+                      if (e.key === "Escape") {
+                        setRenamingId(null);
+                        setRenameValue("");
+                      }
+                    }}
+                    className="flex-1 min-w-0 rounded-md border border-primary/40 bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      void handleRenameConfirm();
+                    }}
+                    disabled={savingRename}
+                    className="flex-shrink-0 p-1 text-emerald-500 hover:text-emerald-400 disabled:opacity-40"
+                    aria-label="确认重命名"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setRenamingId(null);
+                      setRenameValue("");
+                    }}
+                    className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
+                    aria-label="取消重命名"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-              </button>
-              <button
-                type="button"
-                disabled={group.todos.length === 0}
-                onClick={() => selectGroupTodos(group.todos.map((todo) => todo.id))}
-                className="rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {group.todos.length > 0 && group.todos.every((todo) => selectedTodoIds.has(todo.id))
-                  ? "取消全选"
-                  : selectionMode
-                    ? "全选本组"
-                    : "选择"}
-              </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(group.id)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: group.color }}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                      {group.name}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${progress}%`, backgroundColor: group.color }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          {group.doneTodos.length}/{total}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        {group.todos.length} 未完成
+                      </span>
+                      {isCollapsed ? (
+                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={group.todos.length === 0}
+                    onClick={() => selectGroupTodos(group.todos.map((todo) => todo.id))}
+                    className="rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {group.todos.length > 0 && group.todos.every((todo) => selectedTodoIds.has(todo.id))
+                      ? "取消全选"
+                      : selectionMode
+                        ? "全选本组"
+                        : "选择"}
+                  </button>
+                  {group.id !== "unassigned" && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex-shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
+                          aria-label="项目操作"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const proj = projects.find((p) => p.id === group.id);
+                            if (proj) startRename(proj);
+                          }}
+                        >
+                          <Edit3 className="w-3.5 h-3.5 mr-2" />
+                          重命名
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => {
+                            const proj = projects.find((p) => p.id === group.id);
+                            if (proj) setDeleteTarget(proj);
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-2" />
+                          删除项目
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Todo list */}
@@ -304,6 +438,25 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
         onOpenChange={setMoveDialogOpen}
         todoIds={selectedIds}
         onMoved={clearSelection}
+      />
+
+      <ProjectDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        project={deleteTarget}
+        todoCount={
+          deleteTarget
+            ? todos.filter(
+                (t) =>
+                  t.projectId === deleteTarget.id &&
+                  t.status !== "done" &&
+                  t.status !== "cancelled"
+              ).length
+            : 0
+        }
+        onConfirm={handleDeleteConfirm}
       />
     </div>
   );

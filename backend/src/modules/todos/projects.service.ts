@@ -99,7 +99,11 @@ export class ProjectsService {
     return toProjectDto(project);
   }
 
-  async deleteProject(userId: string, projectId: string) {
+  async deleteProject(
+    userId: string,
+    projectId: string,
+    mode: "move" | "delete" = "move"
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.project.findFirst({
         where: {
@@ -115,17 +119,34 @@ export class ProjectsService {
 
       const timestamps = getSoftDeleteTimestamps();
 
-      await tx.todo.updateMany({
-        where: {
-          userId,
-          projectId,
-          deletedAt: null
-        },
-        data: {
-          projectId: null,
-          updatedAt: timestamps.deletedAt
-        }
-      });
+      if (mode === "delete") {
+        // Soft-delete all todos under this project along with the project
+        await tx.todo.updateMany({
+          where: {
+            userId,
+            projectId,
+            deletedAt: null
+          },
+          data: {
+            deletedAt: timestamps.deletedAt,
+            purgeAfter: timestamps.purgeAfter,
+            updatedAt: timestamps.deletedAt
+          }
+        });
+      } else {
+        // Move todos to "unassigned" (projectId = null)
+        await tx.todo.updateMany({
+          where: {
+            userId,
+            projectId,
+            deletedAt: null
+          },
+          data: {
+            projectId: null,
+            updatedAt: timestamps.deletedAt
+          }
+        });
+      }
 
       await tx.project.updateMany({
         where: {

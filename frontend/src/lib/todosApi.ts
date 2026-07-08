@@ -183,6 +183,19 @@ export function createProject(name: string, color?: string) {
   });
 }
 
+export function updateProject(id: string, data: { name?: string; color?: string | null }) {
+  return apiRequest<{ project: Project }>(`/projects/${encodeId(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteProject(id: string, mode: "move" | "delete" = "move") {
+  return apiRequest<{ project: Project }>(`/projects/${encodeId(id)}?mode=${mode}`, {
+    method: "DELETE",
+  });
+}
+
 export function createTag(name: string, color?: string) {
   return apiRequest<{ tag: Tag }>("/tags", {
     method: "POST",

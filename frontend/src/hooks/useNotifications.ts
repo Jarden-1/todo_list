@@ -115,8 +115,14 @@ export function useNotifications({ onOpenTodo }: UseNotificationsOptions) {
   );
 
   const dismissActiveNotification = useCallback(() => {
+    const notification = activeNotification;
     setActiveNotification(null);
-  }, []);
+    // Mark as read on the server so the same notification isn't re-fetched
+    // and re-shown on the next 60s poll.
+    if (notification) {
+      void markNotificationRead(notification.id).catch(() => {});
+    }
+  }, [activeNotification]);
 
   const viewActiveNotificationTodo = useCallback(() => {
     const notification = activeNotification;

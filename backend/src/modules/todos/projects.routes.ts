@@ -6,6 +6,7 @@ import { resolveRequestSession } from "../auth";
 import { ProjectsService } from "./projects.service";
 import {
   projectCreateSchema,
+  projectDeleteQuerySchema,
   projectIdParamsSchema,
   projectPatchSchema
 } from "./todos.schemas";
@@ -44,7 +45,8 @@ export async function projectsRoutes(app: FastifyInstance): Promise<void> {
   app.delete("/projects/:projectId", async (request) => {
     const { userId } = requireAuth(request);
     const { projectId } = projectIdParamsSchema.parse(request.params);
-    const project = await projectsService.deleteProject(userId, projectId);
+    const { mode } = projectDeleteQuerySchema.parse(request.query);
+    const project = await projectsService.deleteProject(userId, projectId, mode);
 
     return dataResponse({ project });
   });

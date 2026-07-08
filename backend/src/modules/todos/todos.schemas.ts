@@ -67,6 +67,10 @@ export const projectPatchSchema = z
   })
   .strict();
 
+export const projectDeleteQuerySchema = z.object({
+  mode: z.enum(["move", "delete"]).default("move")
+});
+
 export const tagCreateSchema = z
   .object({
     name: z.string().trim().min(1, "标签名不能为空").max(100),

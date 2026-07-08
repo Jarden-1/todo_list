@@ -37,6 +37,8 @@ export interface TodoContextValue {
   cancelTodo: (id: string) => Promise<Todo>;
 
   addProject: (name: string, color?: string) => Promise<Project>;
+  updateProject: (id: string, data: { name?: string; color?: string | null }) => Promise<Project>;
+  deleteProject: (id: string, mode: "move" | "delete") => Promise<Project>;
   getProjectById: (id: string | undefined | null) => Project | undefined;
 
   getTagById: (id: string) => Tag | undefined;

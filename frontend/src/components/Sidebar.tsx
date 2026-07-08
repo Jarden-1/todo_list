@@ -18,11 +18,14 @@ import {
   Plus,
   Check,
   X,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
 import { isOverdue, isTodayDate } from "../lib/dateUtils";
 import { useTransientScrollbar } from "../hooks/useTransientScrollbar";
+import { ProjectDeleteDialog } from "./ProjectDeleteDialog";
+import type { Project } from "../lib/types";
 
 const LOGO_URL =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663756374270/DGd4eqCYayiLdVjVXhEfFj/logo-icon-9HsBNNDLVXMHKrpvu4gSPu.webp";
@@ -73,12 +76,13 @@ interface SidebarProps {
 }
 
 export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLogout, onNavigate }: SidebarProps) {
-  const { currentView, setCurrentView, todos, projects, addProject } = useTodo();
+  const { currentView, setCurrentView, todos, projects, addProject, deleteProject } = useTodo();
   const { theme, toggleTheme } = useTheme();
   const [projectsExpanded, setProjectsExpanded] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [savingProject, setSavingProject] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const navScroll = useTransientScrollbar<HTMLElement>();
 
   const handleProjectClick = (projectId: string) => {
@@ -262,15 +266,15 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
                 const isFiltered = filterProjectId === project.id;
 
                 return (
-                  <button
+                  <div
                     key={project.id}
-                    onClick={() => handleProjectClick(project.id)}
                     className={cn(
-                      "nav-item w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all",
+                      "group/proj-item nav-item w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all cursor-pointer",
                       isFiltered
                         ? "nav-item-active font-medium"
-                        : "text-sidebar-foreground/65"
+                        : "text-sidebar-foreground/65 hover:bg-white/24 dark:hover:bg-white/5"
                     )}
+                    onClick={() => handleProjectClick(project.id)}
                   >
                     <span
                       className="w-2 h-2 rounded-full flex-shrink-0"
@@ -285,7 +289,18 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
                         {count}
                       </span>
                     )}
-                  </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(project);
+                      }}
+                      className="flex-shrink-0 opacity-0 group-hover/proj-item:opacity-100 p-0.5 rounded text-sidebar-foreground/40 hover:text-destructive transition-all"
+                      aria-label={`删除项目 ${project.name}`}
+                      title="删除项目"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -321,6 +336,38 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
           退出登录
         </button>
       </div>
+
+      <ProjectDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        project={deleteTarget}
+        todoCount={
+          deleteTarget
+            ? todos.filter(
+                (t) =>
+                  t.projectId === deleteTarget.id &&
+                  t.status !== "done" &&
+                  t.status !== "cancelled"
+              ).length
+            : 0
+        }
+        onConfirm={async (mode) => {
+          if (!deleteTarget) return;
+          try {
+            await deleteProject(deleteTarget.id, mode);
+            toast.success(
+              mode === "delete"
+                ? `项目「${deleteTarget.name}」及其待办已删除`
+                : `项目「${deleteTarget.name}」已删除，待办已移到未分配`
+            );
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "删除项目失败");
+            throw error;
+          }
+        }}
+      />
     </aside>
   );
 }

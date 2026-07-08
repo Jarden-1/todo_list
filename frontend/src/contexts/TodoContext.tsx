@@ -230,6 +230,33 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
     return project;
   }, []);
 
+  const updateProject = useCallback(
+    async (id: string, data: { name?: string; color?: string | null }) => {
+      const { project } = await todosApi.updateProject(id, data);
+      setProjects((prev) => upsertProject(prev, project));
+      return project;
+    },
+    []
+  );
+
+  const deleteProject = useCallback(
+    async (id: string, mode: "move" | "delete" = "move") => {
+      const { project } = await todosApi.deleteProject(id, mode);
+      setProjects((prev) => upsertProject(prev, project));
+      if (mode === "move") {
+        setTodos((prev) =>
+          prev.map((todo) =>
+            todo.projectId === id ? { ...todo, projectId: null } : todo
+          )
+        );
+      } else {
+        setTodos((prev) => prev.filter((todo) => todo.projectId !== id));
+      }
+      return project;
+    },
+    []
+  );
+
   const getProjectById = useCallback(
     (id: string | undefined | null) => projects.find((p) => p.id === id),
     [projects]
@@ -324,6 +351,8 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       uncompleteTodo,
       cancelTodo,
       addProject,
+      updateProject,
+      deleteProject,
       getProjectById,
       getTagById,
       addTag,
@@ -344,6 +373,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       bulkDeleteTodos,
       bulkMoveTodos,
       currentView,
+      deleteProject,
       deleteSubtask,
       deleteTodo,
       duplicateTodo,
@@ -363,6 +393,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       uncompleteTodo,
       undoLastAiCreate,
       undoRecord,
+      updateProject,
       updateTodo,
     ]
   );
