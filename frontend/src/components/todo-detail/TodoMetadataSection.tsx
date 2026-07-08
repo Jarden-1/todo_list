@@ -6,17 +6,13 @@ import { PRIORITY_OPTIONS } from "../../lib/todoOptions";
 import { cn } from "../../lib/utils";
 import { useTodo } from "../../contexts/TodoContext";
 import { DuePrecisionPicker } from "./DuePrecisionPicker";
-import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
 
 const NEW_PROJECT_VALUE = "__new_project__";
 
 // 2x2 metadata grid for the detail panel. Layout matches the reference
 // design: 优先级 / 对接人 / 项目 / 截止时间 in a 2-column grid; due-time
-// gets a "label | value" two-segment summary plus the 4-tab precision
-// editor (精确时刻 / 某天 / 本周内 / 无) underneath. Clicking any
-// precision tab lands directly on the self-drawn DateTimePicker in one
-// step — no more "click tab → see plain date grid → click again to add
-// time" two-step dance.
+// uses the 4-tab precision editor with the active tab showing its value
+// inline (e.g. "精确时刻 07/08 22:39") — no separate summary row needed.
 
 // Priority dot colour per value — mirrors PRIORITY_OPTIONS' text colour
 // but as a background fill (small 8px circle in the badge).
@@ -229,74 +225,23 @@ export function TodoMetadataSection({
         )}
       </div>
 
-      {/* Due — "precision | value" summary + 4-tab precision editor below */}
+      {/* Due — 4-tab precision editor; the active tab shows its value inline
+          (e.g. "精确时刻 07/08 22:39") so no separate summary row is needed. */}
       <div>
         <label className="detail-label flex items-center gap-1">
           <Calendar className="w-3 h-3" />
           截止时间
         </label>
-        <div
-          className={cn(
-            "mt-1 flex min-h-[31px] items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5",
-            overdue && "border-destructive/50"
-          )}
-        >
-          <span
-            className={cn(
-              "rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
-              overdue
-                ? "border-destructive/40 bg-destructive/10 text-destructive"
-                : "border-primary/40 bg-primary/10 text-primary"
-            )}
-          >
-            {precisionLabel(precision)}
-          </span>
-          <span className="text-[10px] text-muted-foreground/60">|</span>
-          <span
-            className={cn(
-              "flex-1 truncate text-xs tabular-nums",
-              overdue ? "text-destructive" : "text-foreground"
-            )}
-          >
-            {formatDueValue(precision, todo.dueAt)}
-          </span>
-        </div>
-        <div className="mt-1.5">
+        <div className="mt-1">
           <DuePrecisionPicker
             dueAt={todo.dueAt}
             precision={precision}
             overdue={overdue}
+            showValueInActiveTab
             onChange={(next) => onUpdate(next)}
           />
         </div>
       </div>
     </div>
   );
-}
-
-// Human label for the precision summary chip in the two-segment display.
-function precisionLabel(precision: DueAtPrecision): string {
-  switch (precision) {
-    case "datetime":
-      return "精确时刻";
-    case "day":
-      return "某天";
-    case "week":
-      return "本周内";
-    case "none":
-      return "无";
-  }
-}
-
-// Renders the value side of the "精度 | 值" summary. Mirrors the same
-// formatting the inline picker used so behaviour is consistent.
-function formatDueValue(precision: DueAtPrecision, dueAt: string | null | undefined): string {
-  if (!dueAt) return "未设置";
-  if (precision === "week") return "本周内";
-  const local = toDatetimeLocalValue(dueAt); // "YYYY-MM-DDTHH:mm"
-  if (!local) return "未设置";
-  if (precision === "day") return local.slice(0, 10).replace(/-/g, "/");
-  // datetime — keep the date, drop the seconds
-  const [date, time] = local.split("T");
-  return `${date.replace(/-/g, "/")} ${time}`;
 }

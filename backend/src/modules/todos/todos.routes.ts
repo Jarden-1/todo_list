@@ -195,6 +195,17 @@ export async function todosRoutes(app: FastifyInstance): Promise<void> {
 
     return dataResponse({ reminder });
   });
+
+  // "不再提醒" — dismiss ALL unsent reminders for a todo at once. Used by
+  // the notification dialog so the user can stop future reminders for a
+  // todo without opening the detail panel.
+  app.post("/todos/:todoId/reminders/dismiss-all", async (request) => {
+    const { userId } = requireAuth(request);
+    const { todoId } = todoIdParamsSchema.parse(request.params);
+    const result = await remindersService.dismissAllActiveRemindersForTodo(userId, todoId);
+
+    return dataResponse(result);
+  });
 }
 
 export default todosRoutes;

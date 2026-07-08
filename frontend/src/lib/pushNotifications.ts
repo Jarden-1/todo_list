@@ -57,6 +57,15 @@ export function markNotificationClicked(notificationId: string, markAsRead = tru
   });
 }
 
+// "不再提醒" — dismiss ALL unsent reminders for a todo so the reminder
+// worker won't fire any more notifications for it.
+export function dismissAllRemindersForTodo(todoId: string) {
+  return apiRequest<{ dismissedCount: number }>(
+    `/todos/${encodeURIComponent(todoId)}/reminders/dismiss-all`,
+    { method: "POST" }
+  );
+}
+
 export function canUseBrowserNotifications() {
   return typeof window !== "undefined" && "Notification" in window;
 }

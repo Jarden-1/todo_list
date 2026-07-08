@@ -3,6 +3,7 @@ import { useSettings } from "../contexts/SettingsContext";
 import { useTodo } from "../contexts/TodoContext";
 import { playNotificationSound } from "../lib/notificationSound";
 import {
+  dismissAllRemindersForTodo,
   fetchUnreadNotifications,
   getApiErrorMessage,
   markNotificationClicked,
@@ -134,6 +135,18 @@ export function useNotifications({ onOpenTodo }: UseNotificationsOptions) {
     );
   }, [activeNotification, openTodoFromNotification]);
 
+  // "不再提醒" — close the dialog AND dismiss all unsent reminders for the
+  // todo so the reminder worker won't fire any more notifications for it.
+  const muteActiveNotification = useCallback(() => {
+    const notification = activeNotification;
+    setActiveNotification(null);
+    if (!notification) return;
+    void markNotificationRead(notification.id).catch(() => {});
+    if (notification.todoId) {
+      void dismissAllRemindersForTodo(notification.todoId).catch(() => {});
+    }
+  }, [activeNotification]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -169,6 +182,7 @@ export function useNotifications({ onOpenTodo }: UseNotificationsOptions) {
     activeNotification,
     hasActiveNotification: Boolean(activeNotification),
     dismissActiveNotification,
+    muteActiveNotification,
     viewActiveNotificationTodo,
     refreshUnreadNotifications,
     lastError,

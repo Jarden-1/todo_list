@@ -234,6 +234,31 @@ export class RemindersService {
     return toReminderDto(await this.findActiveReminder(userId, todoId, reminderId));
   }
 
+  // Dismiss ALL unsent reminders for a todo at once. Used by the
+  // notification dialog's "不再提醒" action — once dismissed, the reminder
+  // worker's `findDueReminders` query (which filters `dismissedAt: null`)
+  // will skip them, so no further notifications fire for this todo.
+  async dismissAllActiveRemindersForTodo(
+    userId: string,
+    todoId: string,
+    dismissedAt = new Date()
+  ): Promise<{ dismissedCount: number }> {
+    const result = await this.prisma.reminder.updateMany({
+      where: {
+        userId,
+        todoId,
+        sentAt: null,
+        deletedAt: null,
+        dismissedAt: null
+      },
+      data: {
+        dismissedAt
+      }
+    });
+
+    return { dismissedCount: result.count };
+  }
+
   private async findActiveReminder(
     userId: string,
     todoId: string,

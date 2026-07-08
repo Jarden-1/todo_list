@@ -14,6 +14,9 @@ interface NotificationDialogProps {
   open: boolean;
   onViewTodo: () => void;
   onDismiss: () => void;
+  /** "不再提醒" — dismiss this notification AND mute all future reminders
+   *  for the same todo so the reminder worker stops firing. */
+  onMute: () => void;
 }
 
 export function NotificationDialog({
@@ -21,6 +24,7 @@ export function NotificationDialog({
   open,
   onViewTodo,
   onDismiss,
+  onMute,
 }: NotificationDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onDismiss()}>
@@ -50,10 +54,10 @@ export function NotificationDialog({
           <DialogFooter className="mt-5 flex-row justify-end gap-2 sm:flex-row">
             <button
               type="button"
-              onClick={onDismiss}
+              onClick={onMute}
               className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              稍后
+              不再提醒
             </button>
             <button
               type="button"

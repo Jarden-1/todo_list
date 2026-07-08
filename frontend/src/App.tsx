@@ -20,6 +20,7 @@ function AppServices({ onOpenTodo }: { onOpenTodo: (todoId: string) => void }) {
     activeNotification,
     hasActiveNotification,
     dismissActiveNotification,
+    muteActiveNotification,
     viewActiveNotificationTodo,
   } = useNotifications({ onOpenTodo });
 
@@ -28,6 +29,7 @@ function AppServices({ onOpenTodo }: { onOpenTodo: (todoId: string) => void }) {
       notification={activeNotification}
       open={hasActiveNotification}
       onDismiss={dismissActiveNotification}
+      onMute={muteActiveNotification}
       onViewTodo={viewActiveNotificationTodo}
     />
   );
