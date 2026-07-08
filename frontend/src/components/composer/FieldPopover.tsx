@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
@@ -19,6 +20,14 @@ interface FieldPopoverProps {
   children: ReactNode;
   align?: "start" | "end";
   className?: string;
+  /**
+   * Optional "owner" container. When the user clicks anywhere inside this
+   * ref, the popover does NOT close — we treat that as the user just
+   * refocusing the composer (e.g. clicking the textarea to keep writing)
+   * rather than explicitly dismissing the popover. ESC, clicking the
+   * trigger again, or clicking outside the owner container all still close.
+   */
+  containerRef?: RefObject<HTMLElement | null>;
 }
 
 const GAP_PX = 6; // matches Tailwind's mt-1.5 on the panel
@@ -30,6 +39,7 @@ export function FieldPopover({
   children,
   align = "start",
   className,
+  containerRef,
 }: FieldPopoverProps) {
   const triggerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -65,13 +75,16 @@ export function FieldPopover({
 
   // Outside-click + Escape to close. The popover is now in a portal, so we
   // must check both the trigger wrapper and the popover element when
-  // deciding whether the click was "inside".
+  // deciding whether the click was "inside". Clicks inside the optional
+  // owner `containerRef` are also treated as "inside" so the user can move
+  // focus back to the composer textarea without dismissing the popover.
   useEffect(() => {
     if (!open) return;
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (triggerRef.current?.contains(target)) return;
       if (popoverRef.current?.contains(target)) return;
+      if (containerRef?.current?.contains(target)) return;
       onOpenChange(false);
     };
     const handleKeydown = (event: KeyboardEvent) => {
@@ -83,7 +96,7 @@ export function FieldPopover({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeydown);
     };
-  }, [open, onOpenChange]);
+  }, [open, onOpenChange, containerRef]);
 
   return (
     <>

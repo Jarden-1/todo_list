@@ -403,7 +403,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
               )}
             >
               <Plus className="h-4 w-4 flex-shrink-0 text-primary/70" />
-              <span className="truncate">写下待办内容，支持 Markdown，AI 润色……</span>
+              <span className="truncate">一次写多个任务，AI 自动拆分 · 支持 Markdown</span>
             </button>
           </div>
         </div>
@@ -426,7 +426,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                   onChange={setInput}
                   textareaRef={textareaRef}
                   onKeyDown={handleKeyDown}
-                  placeholder="写下待办内容，支持 Markdown，AI 润色……"
+                  placeholder="一次写多个任务，AI 自动拆分成独立待办 · 支持 Markdown 排版"
                   rows={3}
                   autoFocus
                   rich
@@ -459,6 +459,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                         setAssignees((prev) => prev.filter((_, i) => i !== index))
                       }
                       onRemoveRecentAssignee={removeRecentAssignee}
+                      containerRef={composerRef}
                     />
 
                     <ProjectPopover
@@ -478,11 +479,13 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                         setNewProjectName("");
                       }}
                       onDeleteProject={() => setProjectDeleteTarget(selectedProject ?? null)}
+                      containerRef={composerRef}
                     />
 
                     <FieldPopover
                       open={openField === "priority"}
                       onOpenChange={(o) => (o ? setOpenField("priority") : closeField())}
+                      containerRef={composerRef}
                       trigger={
                         <FieldButton
                           icon={Flag}
@@ -521,6 +524,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                     <FieldPopover
                       open={openField === "due"}
                       onOpenChange={(o) => (o ? setOpenField("due") : closeField())}
+                      containerRef={composerRef}
                       className="min-w-[280px]"
                       trigger={
                         <FieldButton
@@ -553,6 +557,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
                     <FieldPopover
                       open={openField === "description"}
                       onOpenChange={(o) => (o ? setOpenField("description") : closeField())}
+                      containerRef={composerRef}
                       className="min-w-[300px]"
                       trigger={
                         <FieldButton

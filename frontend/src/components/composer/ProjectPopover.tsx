@@ -1,5 +1,6 @@
 // Project popover: select existing, create new inline, or delete current.
 import { Check, FolderOpen, Trash2, X } from "lucide-react";
+import type { RefObject } from "react";
 import type { Project } from "../../lib/types";
 import { FieldPopover } from "./FieldPopover";
 import { FieldButton } from "./FieldButton";
@@ -20,6 +21,7 @@ interface ProjectPopoverProps {
   onNewProjectNameChange: (value: string) => void;
   onCancelCreate: () => void;
   onDeleteProject: () => void;
+  containerRef?: RefObject<HTMLElement | null>;
 }
 
 export function ProjectPopover({
@@ -36,11 +38,13 @@ export function ProjectPopover({
   onNewProjectNameChange,
   onCancelCreate,
   onDeleteProject,
+  containerRef,
 }: ProjectPopoverProps) {
   return (
     <FieldPopover
       open={open}
       onOpenChange={onOpenChange}
+      containerRef={containerRef}
       className="min-w-[260px]"
       trigger={
         <FieldButton

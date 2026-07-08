@@ -1,6 +1,7 @@
 // Assignee popover: tag-style multi-input with persisted recent history.
 // Wraps FieldPopover + FieldButton + the popover body.
 import { User, X } from "lucide-react";
+import type { RefObject } from "react";
 import { FieldPopover } from "./FieldPopover";
 import { FieldButton } from "./FieldButton";
 
@@ -15,6 +16,7 @@ interface AssigneePopoverProps {
   onAddAssignee: (name: string) => void;
   onRemoveAssignee: (index: number) => void;
   onRemoveRecentAssignee: (name: string) => void;
+  containerRef?: RefObject<HTMLElement | null>;
 }
 
 export function AssigneePopover({
@@ -28,11 +30,13 @@ export function AssigneePopover({
   onAddAssignee,
   onRemoveAssignee,
   onRemoveRecentAssignee,
+  containerRef,
 }: AssigneePopoverProps) {
   return (
     <FieldPopover
       open={open}
       onOpenChange={onOpenChange}
+      containerRef={containerRef}
       trigger={
         <FieldButton
           icon={User}
