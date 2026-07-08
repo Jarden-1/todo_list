@@ -26,9 +26,17 @@ type FieldKey = "assignee" | "project" | "priority" | "due" | "description";
 
 interface AddTodoComposerProps {
   onTodoCreated?: (todoId: string) => void;
+  /**
+   * When this value changes, the composer collapses (closes any open popover
+   * and exits fullscreen). The input text is preserved so the user can resume
+   * editing if they navigate back. Use it when the surrounding view changes
+   * (e.g. sidebar navigation) so the composer doesn't stay expanded on the
+   * new view.
+   */
+  resetKey?: number | string;
 }
 
-export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
+export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProps) {
   const [input, setInput] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -69,6 +77,19 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       document.body.style.overflow = previousOverflow;
     };
   }, [fullscreen]);
+
+  // Collapse the composer when the surrounding view changes (e.g. user
+  // navigates from "today" to "timeline"). The input text is preserved so
+  // the user can pick up where they left off.
+  useEffect(() => {
+    if (collapseTimerRef.current) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+    setOpenField(null);
+    setFullscreen(false);
+    setExpanded(false);
+  }, [resetKey]);
 
   const toggleField = (key: FieldKey) => {
     setOpenField((prev) => (prev === key ? null : key));

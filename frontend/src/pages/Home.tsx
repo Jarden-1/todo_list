@@ -232,7 +232,10 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
          * search box instead. */}
         {currentView !== "completed" && (
           <div className="px-4 md:px-6 pt-4 pb-3 flex-shrink-0">
-            <AddTodoComposer onTodoCreated={(id) => setSelectedTodoId(id)} />
+            <AddTodoComposer
+              onTodoCreated={(id) => setSelectedTodoId(id)}
+              resetKey={currentView}
+            />
           </div>
         )}
 
