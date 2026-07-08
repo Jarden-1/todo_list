@@ -68,6 +68,14 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
   }, [expanded, fullscreen]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
+    // Cmd/Ctrl+Enter triggers AI organize (works in both plain + rich editor)
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
+      if (nativeEvent.isComposing) return;
+      e.preventDefault();
+      void handleAiOrganize();
+      return;
+    }
     if (e.key !== "Escape") return;
     if (fullscreen) {
       setFullscreen(false);
