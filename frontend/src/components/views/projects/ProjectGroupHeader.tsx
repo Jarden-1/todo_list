@@ -1,13 +1,14 @@
-// Project group header: collapse toggle, progress bar, count, inline rename,
+// Project group header: collapse toggle, todo count, inline rename,
 // batch-select button, and the "more" dropdown (rename / delete).
+// Note: ProjectsView is the active-todo workspace — completed items live
+// in the dedicated "已完成" view, so this header doesn't show a completion
+// progress bar or done count.
 import {
   Check,
   ChevronDown,
   ChevronRight,
-  CheckSquare,
   Edit3,
   MoreHorizontal,
-  Square,
   Trash2,
   X,
 } from "lucide-react";
@@ -24,7 +25,6 @@ export interface ProjectGroupData {
   name: string;
   color: string;
   todoCount: number;
-  doneCount: number;
 }
 
 interface ProjectGroupHeaderProps {
@@ -62,9 +62,6 @@ export function ProjectGroupHeader({
   onRenameCancel,
   onDeleteProject,
 }: ProjectGroupHeaderProps) {
-  const total = group.todoCount + group.doneCount;
-  const progress = total > 0 ? (group.doneCount / total) * 100 : 0;
-
   return (
     <div className="flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted/45 transition-colors">
       {renaming ? (
@@ -121,32 +118,14 @@ export function ProjectGroupHeader({
             <span className="min-w-0 flex-shrink truncate text-sm font-semibold text-foreground">
               {group.name}
             </span>
-            <div className="flex flex-shrink-0 items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-16 h-1.5 bg-muted rounded-full overflow-hidden"
-                  role="progressbar"
-                  aria-valuenow={Math.round(progress)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`${group.name} 完成进度 ${group.doneCount}/${total}`}
-                  title={`${group.doneCount}/${total}（${Math.round(progress)}%）`}
-                >
-                  <div
-                    className="h-full rounded-full transition-all min-w-[2px]"
-                    style={{ width: `${progress}%`, backgroundColor: group.color }}
-                  />
-                </div>
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                  {group.doneCount}/{total} · {group.todoCount} 未完成
-                </span>
-              </div>
-              {collapsed ? (
-                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-              )}
-            </div>
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+              {group.todoCount} 项
+            </span>
+            {collapsed ? (
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            )}
           </button>
           <button
             type="button"
