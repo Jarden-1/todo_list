@@ -147,7 +147,13 @@ export function Sidebar({ filterProjectId, onFilterProject, onOpenSettings, onLo
               <button
                 key={item.id}
                 onClick={() => {
-                  onNavigate?.();
+                  // 切到别的视图时不主动收起详情面板 —— 自动选中逻辑
+                  // (Home.tsx) 会接管开关;只有停在当前视图再点一次才收起,
+                  // 否则导航时启动的 560ms 关闭定时器会和自动选中打架,
+                  // 导致面板弹出来又被秒关(点"按时间分类"不自动弹第一个)。
+                  if (currentView === item.id) {
+                    onNavigate?.();
+                  }
                   setCurrentView(item.id);
                   onFilterProject(null);
                 }}
