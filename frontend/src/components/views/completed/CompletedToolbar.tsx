@@ -99,19 +99,19 @@ export function CompletedToolbar({
         {dateFilter === "custom" && (
           <div className="flex items-center gap-2 pt-1">
             <input
-              type="date"
+              type="datetime-local"
               value={customStart}
               onChange={(e) => onCustomStartChange(e.target.value)}
-              className="field-input flex-1 min-w-0 text-xs"
-              aria-label="开始日期"
+              className="field-input flex-1 min-w-0 text-xs cursor-pointer"
+              aria-label="开始时间"
             />
             <span className="text-xs text-muted-foreground">至</span>
             <input
-              type="date"
+              type="datetime-local"
               value={customEnd}
               onChange={(e) => onCustomEndChange(e.target.value)}
-              className="field-input flex-1 min-w-0 text-xs"
-              aria-label="结束日期"
+              className="field-input flex-1 min-w-0 text-xs cursor-pointer"
+              aria-label="结束时间"
             />
             {(customStart || customEnd) && (
               <button

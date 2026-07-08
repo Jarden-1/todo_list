@@ -100,15 +100,14 @@ export function isTodoInDateRange(
       end: endOfMonth(new Date()),
     });
   }
-  // custom
+  // custom — datetime-local is a precise instant, so no end-of-day padding.
   if (!customStart && !customEnd) return true;
   const start = customStart ? parseISO(customStart) : null;
   const end = customEnd ? parseISO(customEnd) : null;
-  const endInclusive = end ? new Date(end.getTime() + 24 * 60 * 60 * 1000 - 1) : null;
-  if (start && endInclusive) {
-    return isWithinInterval(completed, { start, end: endInclusive });
+  if (start && end) {
+    return isWithinInterval(completed, { start, end });
   }
   if (start) return completed >= start;
-  if (endInclusive) return completed <= endInclusive;
+  if (end) return completed <= end;
   return true;
 }
