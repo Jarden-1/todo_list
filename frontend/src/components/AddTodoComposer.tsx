@@ -1,59 +1,26 @@
-// SmartTodo - Smart Composer
-// Simplified: single Markdown input + 5 lightweight field buttons + fullscreen/AI
+// SmartTodo - Smart Composer (refactored)
+// Single Markdown input + 5 lightweight field popovers + fullscreen/AI.
+// Presentational popovers live in ./composer/*.
 import { useState, useRef, useEffect } from "react";
-import {
-  Calendar,
-  Check,
-  CheckCircle2,
-  Edit3,
-  Flag,
-  FolderOpen,
-  Plus,
-  Trash2,
-  Undo2,
-  User,
-  X,
-} from "lucide-react";
+import { Calendar, CheckCircle2, Edit3, Flag, Plus, Undo2 } from "lucide-react";
 import { useTodo } from "../contexts/TodoContext";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ComposerFullscreenDialog } from "./composer/ComposerFullscreenDialog";
 import { FieldPopover } from "./composer/FieldPopover";
+import { FieldButton } from "./composer/FieldButton";
+import { AssigneePopover } from "./composer/AssigneePopover";
+import { ProjectPopover, NEW_PROJECT_VALUE } from "./composer/ProjectPopover";
 import { DuePrecisionPicker } from "./todo-detail/DuePrecisionPicker";
 import { ProjectDeleteDialog } from "./ProjectDeleteDialog";
 import { PRIORITY_OPTIONS } from "../lib/todoOptions";
+import {
+  loadRecentAssignees,
+  persistRecentAssignees,
+  MAX_RECENT_ASSIGNEES,
+} from "./composer/recentAssignees";
 import type { DueAtPrecision, Project, TodoPriority } from "../lib/types";
-
-const RECENT_ASSIGNEES_KEY = "smarttodo.recentAssignees";
-const MAX_RECENT_ASSIGNEES = 10;
-const NEW_PROJECT_VALUE = "__new_project__";
-
-function loadRecentAssignees(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(RECENT_ASSIGNEES_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((x): x is string => typeof x === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistRecentAssignees(list: string[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      RECENT_ASSIGNEES_KEY,
-      JSON.stringify(list.slice(0, MAX_RECENT_ASSIGNEES))
-    );
-  } catch {
-    // ignore quota / serialization errors
-  }
-}
 
 type FieldKey = "assignee" | "project" | "priority" | "due" | "description";
 
@@ -85,7 +52,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(null);
 
-  const { addTodo, addTodoFromAi, undoLastAiCreate, undoRecord, projects, addProject, deleteProject, todos } =
+  const { addProject, addTodoFromAi, undoLastAiCreate, undoRecord, projects, deleteProject, todos } =
     useTodo();
 
   // Fullscreen side effects
@@ -103,27 +70,26 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     };
   }, [fullscreen]);
 
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>
-  ) => {
-    // Cmd/Ctrl+Enter triggers AI organize (plain + rich editor both)
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
-      if (nativeEvent.isComposing) return;
-      e.preventDefault();
-      void handleAiOrganize();
-      return;
-    }
-    if (e.key === "Escape") {
-      if (fullscreen) {
-        setFullscreen(false);
-        return;
-      }
-      if (openField) {
-        setOpenField(null);
-        return;
-      }
-    }
+  const toggleField = (key: FieldKey) => {
+    setOpenField((prev) => (prev === key ? null : key));
+  };
+
+  const addAssignee = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setAssignees((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+    setRecentAssignees((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const updated = [trimmed, ...prev].slice(0, MAX_RECENT_ASSIGNEES);
+      persistRecentAssignees(updated);
+      return updated;
+    });
+  };
+
+  const removeRecentAssignee = (name: string) => {
+    const updated = recentAssignees.filter((a) => a !== name);
+    setRecentAssignees(updated);
+    persistRecentAssignees(updated);
   };
 
   const buildFieldHint = (): string => {
@@ -151,14 +117,11 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     setAiLoading(true);
     try {
       const aiInput = text + buildFieldHint();
-      const todos = await addTodoFromAi(aiInput);
-      if (todos.length === 0) return;
-      const firstTodo = todos[0];
+      const createdTodos = await addTodoFromAi(aiInput);
+      if (createdTodos.length === 0) return;
+      const firstTodo = createdTodos[0];
 
-      // Recent assignees are already persisted the moment the user adds them
-      // via addAssignee() — no need to re-save here. Just reset the form.
-
-      // Reset
+      // Reset form
       setInput("");
       setAssignees([]);
       setAssigneeInput("");
@@ -173,9 +136,9 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       onTodoCreated?.(firstTodo.id);
 
       const summary =
-        todos.length === 1
+        createdTodos.length === 1
           ? `已创建：${firstTodo.title}`
-          : `已按时间拆分为 ${todos.length} 条待办`;
+          : `已按时间拆分为 ${createdTodos.length} 条待办`;
 
       toast.custom(
         (t) => (
@@ -183,13 +146,10 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
             <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground">{summary}</p>
-              {todos.length > 1 && (
+              {createdTodos.length > 1 && (
                 <ul className="mt-1 space-y-0.5">
-                  {todos.map((item) => (
-                    <li
-                      key={item.id}
-                      className="truncate text-xs text-muted-foreground"
-                    >
+                  {createdTodos.map((item) => (
+                    <li key={item.id} className="truncate text-xs text-muted-foreground">
                       · {item.title}
                     </li>
                   ))}
@@ -227,6 +187,26 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
+      if (nativeEvent.isComposing) return;
+      e.preventDefault();
+      void handleAiOrganize();
+      return;
+    }
+    if (e.key === "Escape") {
+      if (fullscreen) {
+        setFullscreen(false);
+        return;
+      }
+      if (openField) {
+        setOpenField(null);
+        return;
+      }
+    }
+  };
+
   const handleCreateProject = async () => {
     const name = newProjectName.trim();
     if (!name) return;
@@ -250,42 +230,10 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     setProjectId(value);
   };
 
-  const removeRecentAssignee = (name: string) => {
-    const updated = recentAssignees.filter((a) => a !== name);
-    setRecentAssignees(updated);
-    persistRecentAssignees(updated);
-  };
-
   const hasComposeInput = input.trim().length > 0;
   const selectedProject = projects.find((p) => p.id === projectId);
   const countTodosForProject = (id: string) =>
-    todos.filter(
-      (t) =>
-        t.projectId === id &&
-        t.status !== "done" &&
-        t.status !== "cancelled"
-    ).length;
-  const openFullscreen = () => setFullscreen(true);
-  const closeFullscreen = () => setFullscreen(false);
-
-  const toggleField = (key: FieldKey) => {
-    setOpenField((prev) => (prev === key ? null : key));
-  };
-
-  // Add an assignee to the current list AND persist to recent history
-  // immediately — so the name survives a page refresh even if the user
-  // never submits the AI organize request.
-  const addAssignee = (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setAssignees((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
-    setRecentAssignees((prev) => {
-      if (prev.includes(trimmed)) return prev;
-      const updated = [trimmed, ...prev].slice(0, MAX_RECENT_ASSIGNEES);
-      persistRecentAssignees(updated);
-      return updated;
-    });
-  };
+    todos.filter((t) => t.projectId === id && t.status !== "done" && t.status !== "cancelled").length;
 
   const expandComposer = () => {
     if (collapseTimerRef.current) {
@@ -295,11 +243,6 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     setExpanded(true);
   };
 
-  // Collapse the composer when focus leaves it entirely (clicked outside, not
-  // into a toolbar button or popover). Use relatedTarget for an immediate
-  // check — it points to the next focus target right when blur fires, so we
-  // don't have to guess 120ms later. The setTimeout is a fallback for cases
-  // where relatedTarget is null (clicking a non-focusable area).
   const handleComposerBlur = (event: React.FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget as Node | null;
     if (next && composerRef.current?.contains(next)) return;
@@ -335,7 +278,6 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       >
         {expanded ? (
           <>
-            {/* Expanded: full markdown editor + field buttons */}
             <MarkdownEditor
               value={input}
               onChange={setInput}
@@ -350,7 +292,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
               aiLoading={aiLoading}
               aiDisabled={!hasComposeInput}
               showFullscreenToggle
-              onToggleFullscreen={openFullscreen}
+              onToggleFullscreen={() => setFullscreen(true)}
               fullscreenToggleLabel="全屏输入"
               defaultHeight={130}
               minHeight={110}
@@ -359,172 +301,41 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
               textareaClassName="px-4 pb-5 pt-2 text-sm leading-relaxed"
             />
 
-            {/* 5 lightweight field buttons, each opens a popover */}
             <div className="flex items-center justify-between gap-1.5 px-3 py-2 border-t border-border/30">
               <div className="flex flex-wrap items-center gap-1">
-                <FieldPopover
+                <AssigneePopover
                   open={openField === "assignee"}
                   onOpenChange={(o) => setOpenField(o ? "assignee" : null)}
-                  trigger={
-                    <FieldButton
-                      icon={User}
-                      label="参与人"
-                      active={openField === "assignee"}
-                      value={assignees.length > 0 ? `${assignees.length} 人` : ""}
-                      onClick={() => toggleField("assignee")}
-                    />
+                  onToggle={() => toggleField("assignee")}
+                  assignees={assignees}
+                  assigneeInput={assigneeInput}
+                  recentAssignees={recentAssignees}
+                  onAssigneeInputChange={setAssigneeInput}
+                  onAddAssignee={addAssignee}
+                  onRemoveAssignee={(index) =>
+                    setAssignees((prev) => prev.filter((_, i) => i !== index))
                   }
-                >
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <User className="w-3 h-3" /> 参与人
-                    </label>
-                    {assignees.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {assignees.map((name, index) => (
-                          <span
-                            key={`${name}-${index}`}
-                            className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-foreground"
-                          >
-                            {name}
-                            <button
-                              type="button"
-                              onClick={() => setAssignees((prev) => prev.filter((_, i) => i !== index))}
-                              className="text-muted-foreground/60 hover:text-destructive transition-colors"
-                              aria-label={`移除 ${name}`}
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <input
-                      value={assigneeInput}
-                      onChange={(e) => setAssigneeInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addAssignee(assigneeInput);
-                          setAssigneeInput("");
-                        }
-                      }}
-                      placeholder="姓名 / 邮箱（Enter 添加）"
-                      className="field-input w-full"
-                    />
-                    {recentAssignees.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="text-[10px] text-muted-foreground">历史:</span>
-                        {recentAssignees.map((name) => (
-                          <span
-                            key={name}
-                            className="group/ra inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5 text-[11px] text-foreground"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => addAssignee(name)}
-                              className="hover:text-primary"
-                            >
-                              {name}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeRecentAssignee(name)}
-                              className="text-muted-foreground/50 hover:text-destructive"
-                              aria-label={`删除历史人名 ${name}`}
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </FieldPopover>
+                  onRemoveRecentAssignee={removeRecentAssignee}
+                />
 
-                <FieldPopover
+                <ProjectPopover
                   open={openField === "project"}
                   onOpenChange={(o) => setOpenField(o ? "project" : null)}
-                  className="min-w-[260px]"
-                  trigger={
-                    <FieldButton
-                      icon={FolderOpen}
-                      label="项目"
-                      active={openField === "project"}
-                      value={selectedProject?.name ?? ""}
-                      emptyLabel="未分配"
-                      onClick={() => toggleField("project")}
-                    />
-                  }
-                >
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <FolderOpen className="w-3 h-3" /> 项目
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <select
-                        value={projectId || (isCreatingProject ? NEW_PROJECT_VALUE : "")}
-                        onChange={(e) => handleProjectSelect(e.target.value)}
-                        className="field-input flex-1 min-w-0"
-                      >
-                        <option value="">未分配</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
-                          </option>
-                        ))}
-                        <option value={NEW_PROJECT_VALUE}>+ 新建项目…</option>
-                      </select>
-                      {projectId && selectedProject && (
-                        <button
-                          type="button"
-                          onClick={() => setProjectDeleteTarget(selectedProject)}
-                          className="flex-shrink-0 p-1.5 rounded text-muted-foreground hover:text-destructive transition-colors"
-                          aria-label="删除当前项目"
-                          title="删除项目"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                    {isCreatingProject && (
-                      <div className="flex items-center gap-1">
-                        <input
-                          autoFocus
-                          value={newProjectName}
-                          onChange={(e) => setNewProjectName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") void handleCreateProject();
-                          }}
-                          placeholder="新项目名称…"
-                          className="field-input flex-1 min-w-0"
-                        />
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            void handleCreateProject();
-                          }}
-                          className="flex-shrink-0 p-1 text-emerald-500 hover:text-emerald-400"
-                          aria-label="确认新建项目"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setProjectId("");
-                            setNewProjectName("");
-                          }}
-                          className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
-                          aria-label="取消"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </FieldPopover>
+                  onToggle={() => toggleField("project")}
+                  projectId={projectId}
+                  projects={projects}
+                  selectedProject={selectedProject}
+                  isCreatingProject={isCreatingProject}
+                  newProjectName={newProjectName}
+                  onProjectSelect={handleProjectSelect}
+                  onCreateProject={() => void handleCreateProject()}
+                  onNewProjectNameChange={setNewProjectName}
+                  onCancelCreate={() => {
+                    setProjectId("");
+                    setNewProjectName("");
+                  }}
+                  onDeleteProject={() => setProjectDeleteTarget(selectedProject ?? null)}
+                />
 
                 <FieldPopover
                   open={openField === "priority"}
@@ -639,7 +450,6 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
             </div>
           </>
         ) : (
-          /* Collapsed: a single-line clickable prompt */
           <button
             type="button"
             onClick={expandComposer}
@@ -658,24 +468,19 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
           hasInput={hasComposeInput}
           aiLoading={aiLoading}
           onChange={setInput}
-          onClose={closeFullscreen}
+          onClose={() => setFullscreen(false)}
           onKeyDown={handleKeyDown}
           onAiOrganize={handleAiOrganize}
         />
       )}
 
-      {/* Project delete confirmation */}
       <ProjectDeleteDialog
         open={projectDeleteTarget !== null}
         onOpenChange={(open) => {
           if (!open) setProjectDeleteTarget(null);
         }}
         project={projectDeleteTarget}
-        todoCount={
-          projectDeleteTarget
-            ? countTodosForProject(projectDeleteTarget.id)
-            : 0
-        }
+        todoCount={projectDeleteTarget ? countTodosForProject(projectDeleteTarget.id) : 0}
         onConfirm={async (mode) => {
           if (!projectDeleteTarget) return;
           try {
@@ -694,7 +499,6 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
         }}
       />
 
-      {/* Persistent undo entry — survives after the 6s toast disappears */}
       {undoRecord && !aiLoading && (
         <button
           type="button"
@@ -716,43 +520,5 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
         </button>
       )}
     </div>
-  );
-}
-
-interface FieldButtonProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  active: boolean;
-  value: string;
-  emptyLabel?: string;
-  onClick: () => void;
-}
-
-function FieldButton({ icon: Icon, label, active, value, emptyLabel, onClick }: FieldButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      // Keep the markdown editor's caret alive when the user clicks a field
-      // button. Without this, the button steals focus on mousedown and the
-      // editor caret disappears — the user has to click the editor again to
-      // resume typing. The onClick handler still fires normally.
-      onMouseDown={(event) => event.preventDefault()}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
-        active
-          ? "bg-primary/12 text-primary"
-          : value
-            ? "text-foreground"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-      )}
-    >
-      <Icon className="w-3 h-3" />
-      {value ? (
-        <span className="max-w-[80px] truncate">{value}</span>
-      ) : (
-        <span>{label}</span>
-      )}
-    </button>
   );
 }
