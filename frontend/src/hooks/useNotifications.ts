@@ -18,6 +18,19 @@ interface UseNotificationsOptions {
   onOpenTodo: (todoId: string) => void;
 }
 
+// Fire a native OS notification when running inside the Tauri/Pake desktop
+// shell. pake registers a `send_notification` Rust command (backed by
+// tauri-plugin-notification) and exposes it via the global Tauri API because
+// `withGlobalTauri` is enabled. Web Push does not work inside the WebView, so
+// this is how the desktop app recovers system-level popups. Safe no-op
+// everywhere else (browser, where `window.__TAURI__` is undefined).
+function fireTauriNativeNotification(title: string, body: string) {
+  const tauri = (window as unknown as { __TAURI__?: { core?: { invoke?: (cmd: string, args: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__;
+  const invoke = tauri?.core?.invoke;
+  if (!invoke) return;
+  void invoke("send_notification", { title, body, icon: "" }).catch(() => {});
+}
+
 export function useNotifications({ onOpenTodo }: UseNotificationsOptions) {
   const { settings } = useSettings();
   const { setSelectedTodoId } = useTodo();
@@ -99,6 +112,13 @@ export function useNotifications({ onOpenTodo }: UseNotificationsOptions) {
     if (settings.ringtone.enabled) {
       playNotificationSound(settings.ringtone);
     }
+
+    // Desktop (Tauri/Pake) app: also pop a native OS notification. The
+    // webview's polling path already shows the in-app dialog; this adds the
+    // system-level popup that Web Push cannot deliver inside Tauri's
+    // WebView. In a normal browser `window.__TAURI__` is undefined, so this
+    // is a no-op there.
+    fireTauriNativeNotification(activeNotification.title, activeNotification.body);
   }, [activeNotification, settings.ringtone]);
 
   const openTodoFromNotification = useCallback(

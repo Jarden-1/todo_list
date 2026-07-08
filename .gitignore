@@ -9,3 +9,5 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .workbuddy/
+# Release build artifacts (icons, mingw toolchain, etc.) — too large for git
+release-assets/
