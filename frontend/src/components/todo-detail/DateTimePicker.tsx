@@ -1,9 +1,14 @@
 // Self-drawn DateTimePicker — replaces the native `<input type="date">` /
-// `<input type="datetime-local">` + `.showPicker()` dance that was causing
-// the "click tab → land on a plain date grid → click again to add time"
-// two-step UX. Two modes share the same calendar grid; the datetime mode
-// appends a wheel-style hour/minute picker (1-minute step, no seconds) on
-// the right, matching the reference design.
+// `<input type="datetime-local">` + `.showPicker()` dance. Two modes share
+// the same calendar grid; the datetime mode appends a wheel-style
+// hour/minute picker (1-minute step, no seconds).
+//
+// **Commit model**: the picker keeps an internal `draft` that the user
+// mutates by clicking calendar / scrolling wheels / hitting "今天". The
+// parent only sees the change when the user clicks "确定" (onConfirm). If
+// the popover is dismissed (ESC / outside click → component unmounts)
+// the draft is discarded — the parent value stays untouched. This
+// prevents accidental time changes from a stray click.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronUp } from "lucide-react";
 import {
@@ -22,19 +27,19 @@ import { cn } from "../../lib/utils";
 interface DateTimePickerProps {
   /** "date" → calendar only. "datetime" → calendar + hour/minute wheel. */
   mode: "date" | "datetime";
-  /** Current value as an ISO string. When null we fall back to "now" for
-   *  display only — no onChange fires until the user actually picks. */
+  /** Current committed value (ISO string), or null. Used to seed the
+   *  internal draft — changes to it re-sync the draft (e.g. when the
+   *  popover re-opens with a fresh value). */
   value: string | null;
-  /** Fires with the new ISO (preserves the original time-of-day on date
-   *  changes, and the original calendar date on time changes). */
-  onChange: (next: { iso: string | null }) => void;
+  /** Fires ONLY when the user clicks "确定". The draft is committed. */
+  onConfirm: (next: { iso: string | null }) => void;
   overdue?: boolean;
 }
 
 const WEEK_DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 
 const WHEEL_ITEM_H = 28;
-const WHEEL_VISIBLE = 5; // 5 items visible, middle one highlighted
+const WHEEL_VISIBLE = 5;
 const WHEEL_PAD = ((WHEEL_VISIBLE - 1) / 2) * WHEEL_ITEM_H;
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -44,21 +49,29 @@ function formatYearMonth(year: number, month: number) {
   return `${year}年${String(month + 1).padStart(2, "0")}月`;
 }
 
-export function DateTimePicker({ mode, value, onChange, overdue = false }: DateTimePickerProps) {
-  // Anchor the calendar grid to the value's date, or today if none.
-  const anchor = useMemo(() => (value ? parseISO(value) : new Date()), [value]);
+export function DateTimePicker({ mode, value, onConfirm, overdue = false }: DateTimePickerProps) {
+  // ── Draft state ──────────────────────────────────────────────────────
+  // All user interactions (calendar click / wheel scroll / today / clear)
+  // mutate `draft` only. `onConfirm` is the single exit point that pushes
+  // the draft back to the parent. If the component unmounts before
+  // confirm (popover dismissed), the draft evaporates = cancel.
+  const [draft, setDraft] = useState<string | null>(value);
+
+  // Re-sync draft when the committed value changes externally — e.g.
+  // a different todo loaded, or a precision switch seeded a new default.
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  // Anchor the calendar grid to the draft's date, or today if none.
+  const anchor = useMemo(() => (draft ? parseISO(draft) : new Date()), [draft]);
   const [viewYear, setViewYear] = useState(anchor.getFullYear());
   const [viewMonth, setViewMonth] = useState(anchor.getMonth());
 
-  // When the external value changes (e.g. a different todo loaded, or a
-  // precision switch defaulted to today), recentre the grid on it.
   useEffect(() => {
     setViewYear(anchor.getFullYear());
     setViewMonth(anchor.getMonth());
-    // We intentionally only react to value changes; the anchor object
-    // recomputes every render otherwise.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [anchor]);
 
   const shiftMonth = (delta: number) => {
     const next = addMonths(new Date(viewYear, viewMonth, 1), delta);
@@ -66,7 +79,6 @@ export function DateTimePicker({ mode, value, onChange, overdue = false }: DateT
     setViewMonth(next.getMonth());
   };
 
-  // 6×7 grid covering the whole month plus the leading/trailing spillover.
   const monthGrid = useMemo(() => {
     const first = startOfMonth(new Date(viewYear, viewMonth, 1));
     const last = endOfMonth(first);
@@ -77,37 +89,43 @@ export function DateTimePicker({ mode, value, onChange, overdue = false }: DateT
     return cells;
   }, [viewYear, viewMonth]);
 
+  // ── Draft mutators (do NOT call onConfirm) ───────────────────────────
   const handleSelectDate = (day: Date) => {
     const next = new Date(day);
     if (mode === "datetime") {
-      // Preserve the existing time-of-day if the user already had one; a
-      // fresh "no value" state defaults to 00:00 (per spec).
       next.setHours(anchor.getHours(), anchor.getMinutes(), 0, 0);
     } else {
       next.setHours(0, 0, 0, 0);
     }
-    onChange({ iso: next.toISOString() });
+    setDraft(next.toISOString());
   };
 
   const handleTimeChange = (hour: number, minute: number) => {
     const next = new Date(anchor);
     next.setHours(hour, minute, 0, 0);
-    onChange({ iso: next.toISOString() });
+    setDraft(next.toISOString());
   };
 
-  const handleClear = () => onChange({ iso: null });
+  const handleClear = () => setDraft(null);
 
   const handleToday = () => {
     const today = new Date();
-    if (mode === "date") today.setHours(0, 0, 0, 0);
-    else {
-      // Only seed time-of-day if the user has never picked one. Keeping
-      // their existing 00:00 default means "today" just changes the date.
-      const hasUserTime = value !== null;
-      today.setHours(hasUserTime ? anchor.getHours() : 0, hasUserTime ? anchor.getMinutes() : 0, 0, 0);
+    if (mode === "date") {
+      today.setHours(0, 0, 0, 0);
+    } else {
+      const hasUserTime = draft !== null;
+      today.setHours(
+        hasUserTime ? anchor.getHours() : 0,
+        hasUserTime ? anchor.getMinutes() : 0,
+        0,
+        0
+      );
     }
-    onChange({ iso: today.toISOString() });
+    setDraft(today.toISOString());
   };
+
+  // ── Commit ───────────────────────────────────────────────────────────
+  const handleConfirm = () => onConfirm({ iso: draft });
 
   return (
     <div className={cn("space-y-2", overdue && "text-destructive")}>
@@ -183,19 +201,28 @@ export function DateTimePicker({ mode, value, onChange, overdue = false }: DateT
       )}
 
       <div className="flex items-center justify-between border-t border-border/40 pt-1.5 text-[11px]">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            清除
+          </button>
+          <button
+            type="button"
+            onClick={handleToday}
+            className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            今天
+          </button>
+        </div>
         <button
           type="button"
-          onClick={handleClear}
-          className="font-medium text-primary transition-colors hover:text-primary/80"
+          onClick={handleConfirm}
+          className="rounded-md bg-primary px-3 py-1 font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          清除
-        </button>
-        <button
-          type="button"
-          onClick={handleToday}
-          className="font-medium text-primary transition-colors hover:text-primary/80"
-        >
-          今天
+          确定
         </button>
       </div>
     </div>
@@ -214,16 +241,12 @@ function WheelColumn({ values, value, onChange, label }: WheelColumnProps) {
   const lastEmittedRef = useRef(value);
   const programmaticScrollRef = useRef(false);
 
-  // Snap the scroll position to the current value on mount and whenever the
-  // controlled `value` changes. We use a flag to ignore the resulting
-  // scroll event so we don't echo onChange back at the parent.
   useLayoutEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
     programmaticScrollRef.current = true;
     el.scrollTop = value * WHEEL_ITEM_H;
     lastEmittedRef.current = value;
-    // Allow the synthetic scroll event to flush, then re-enable user input.
     requestAnimationFrame(() => {
       programmaticScrollRef.current = false;
     });
@@ -243,7 +266,6 @@ function WheelColumn({ values, value, onChange, label }: WheelColumnProps) {
 
   return (
     <div className="relative h-[140px] overflow-hidden rounded-lg border border-border/40 bg-muted/20">
-      {/* Highlight band — sits over the middle row, never blocks clicks. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 border-y border-primary/30 bg-primary/10"
         style={{ height: WHEEL_ITEM_H }}

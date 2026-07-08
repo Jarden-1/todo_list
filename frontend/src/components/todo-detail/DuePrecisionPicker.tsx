@@ -93,7 +93,7 @@ export function DuePrecisionPicker({
             mode="datetime"
             value={dueAt}
             overdue={overdue}
-            onChange={(next) =>
+            onConfirm={(next) =>
               onChange({
                 dueAt: next.iso,
                 dueAtPrecision: next.iso ? "datetime" : "none",
@@ -109,7 +109,7 @@ export function DuePrecisionPicker({
             mode="date"
             value={dueAt}
             overdue={overdue}
-            onChange={(next) =>
+            onConfirm={(next) =>
               onChange({
                 dueAt: next.iso,
                 dueAtPrecision: next.iso ? "day" : "none",
