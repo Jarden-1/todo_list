@@ -104,7 +104,7 @@ export function markdownToRichHtml(markdown: string) {
     const task = line.match(/^\s*[-*+]\s+\[([ xX])\]\s+(.+)$/);
     if (task) {
       openList("ul", true);
-      html += `<li><input type="checkbox" ${task[1].toLowerCase() === "x" ? "checked " : ""}disabled /> ${renderInlineMarkdown(task[2])}</li>`;
+      html += `<li><input type="checkbox" ${task[1].toLowerCase() === "x" ? "checked " : ""}class="task-checkbox" /> ${renderInlineMarkdown(task[2])}</li>`;
       continue;
     }
 

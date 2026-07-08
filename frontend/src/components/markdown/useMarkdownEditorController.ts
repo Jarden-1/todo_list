@@ -410,6 +410,7 @@ export function useMarkdownEditorController({
     handleRichInput: richBridge.handleInput,
     handleRichBlur: richBridge.handleBlur,
     handleRichFocus: richBridge.handleFocus,
+    handleRichClick: richBridge.handleRichClick,
     handleCompositionStart: richBridge.handleCompositionStart,
     handleCompositionEnd: richBridge.handleCompositionEnd,
     handleRichSelectionSnapshot: richBridge.handleSelectionSnapshot,

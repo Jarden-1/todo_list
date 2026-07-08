@@ -212,7 +212,7 @@ export function useRichMarkdownBridge({
       if (task) {
         const box = document.createElement("input");
         box.type = "checkbox";
-        box.disabled = true;
+        box.className = "task-checkbox";
         li.appendChild(box);
         li.appendChild(document.createTextNode(" "));
       }
@@ -372,6 +372,17 @@ export function useRichMarkdownBridge({
   // empty editor).
   const getRichHtml = () => richEditorRef.current?.innerHTML ?? "";
 
+  // Click handler for task-list checkboxes. Toggles the checked state and
+  // emits the change so the markdown source ([ ] ↔ [x]) stays in sync.
+  const handleRichClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.tagName !== "INPUT" || target.getAttribute("type") !== "checkbox") return;
+    event.preventDefault();
+    const checkbox = target as HTMLInputElement;
+    checkbox.checked = !checkbox.checked;
+    emitRichChange();
+  };
+
   return {
     richEditorRef,
     runRichCommand,
@@ -387,5 +398,6 @@ export function useRichMarkdownBridge({
     handleCompositionStart,
     handleCompositionEnd,
     handleSelectionSnapshot,
+    handleRichClick,
   };
 }

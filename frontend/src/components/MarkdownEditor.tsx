@@ -165,6 +165,7 @@ export function MarkdownEditor({
           onInput={editor.handleRichInput}
           onBlur={editor.handleRichBlur}
           onFocus={editor.handleRichFocus}
+          onClick={editor.handleRichClick}
           onPaste={editor.handlePaste}
           onCompositionStart={editor.handleCompositionStart}
           onCompositionEnd={editor.handleCompositionEnd}
