@@ -1,46 +1,92 @@
 // SmartTodo - Smart Composer
-// Two modes: "compose" (Markdown editor + AI) and "fields" (structured form)
+// Simplified: single Markdown input + 5 lightweight field buttons + fullscreen/AI
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, Undo2 } from "lucide-react";
+import {
+  Calendar,
+  Check,
+  CheckCircle2,
+  Edit3,
+  Flag,
+  FolderOpen,
+  Plus,
+  Trash2,
+  Undo2,
+  User,
+  X,
+} from "lucide-react";
 import { useTodo } from "../contexts/TodoContext";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { MarkdownEditor } from "./MarkdownEditor";
-import { CollapsedComposer } from "./composer/CollapsedComposer";
 import { ComposerFullscreenDialog } from "./composer/ComposerFullscreenDialog";
-import {
-  ComposerModeSwitch,
-  type ComposerMode,
-} from "./composer/ComposerModeSwitch";
-import { StructuredTodoForm } from "./composer/StructuredTodoForm";
+import { DuePrecisionPicker } from "./todo-detail/DuePrecisionPicker";
+import { ProjectDeleteDialog } from "./ProjectDeleteDialog";
+import { PRIORITY_OPTIONS } from "../lib/todoOptions";
+import type { DueAtPrecision, Project, TodoPriority } from "../lib/types";
+
+const RECENT_ASSIGNEES_KEY = "smarttodo.recentAssignees";
+const MAX_RECENT_ASSIGNEES = 10;
+const NEW_PROJECT_VALUE = "__new_project__";
+
+function loadRecentAssignees(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_ASSIGNEES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistRecentAssignees(list: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      RECENT_ASSIGNEES_KEY,
+      JSON.stringify(list.slice(0, MAX_RECENT_ASSIGNEES))
+    );
+  } catch {
+    // ignore quota / serialization errors
+  }
+}
+
+type FieldKey = "assignee" | "project" | "priority" | "due" | "description";
 
 interface AddTodoComposerProps {
   onTodoCreated?: (todoId: string) => void;
 }
 
 export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
-  const [mode, setMode] = useState<ComposerMode>("compose");
   const [input, setInput] = useState("");
-  const [expanded, setExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const { addTodo, addTodoFromAi, undoLastAiCreate, undoRecord, projects } = useTodo();
+  const [openField, setOpenField] = useState<FieldKey | null>(null);
 
-  // Auto-resize textarea
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 240)}px`;
-  }, [input]);
+  // Form fields
+  const [assignee, setAssignee] = useState("");
+  const [projectId, setProjectId] = useState<string>("");
+  const [priority, setPriority] = useState<TodoPriority>("medium");
+  const [dueAt, setDueAt] = useState<string | null>(null);
+  const [dueAtPrecision, setDueAtPrecision] = useState<DueAtPrecision>("none");
+  const [description, setDescription] = useState("");
+  const [recentAssignees, setRecentAssignees] = useState<string[]>(loadRecentAssignees);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(null);
 
+  const { addTodo, addTodoFromAi, undoLastAiCreate, undoRecord, projects, addProject, deleteProject, todos } =
+    useTodo();
+
+  // Fullscreen side effects
   useEffect(() => {
     if (!fullscreen) return;
-    setExpanded(true);
-    setMode("compose");
     requestAnimationFrame(() => fullscreenTextareaRef.current?.focus());
   }, [fullscreen]);
 
@@ -53,22 +99,10 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     };
   }, [fullscreen]);
 
-  useEffect(() => {
-    if (!expanded || fullscreen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (composerRef.current?.contains(target)) return;
-      setExpanded(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [expanded, fullscreen]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
-    // Cmd/Ctrl+Enter triggers AI organize (works in both plain + rich editor)
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>
+  ) => {
+    // Cmd/Ctrl+Enter triggers AI organize (plain + rich editor both)
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
       if (nativeEvent.isComposing) return;
@@ -76,13 +110,34 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       void handleAiOrganize();
       return;
     }
-    if (e.key !== "Escape") return;
-    if (fullscreen) {
-      setFullscreen(false);
-      return;
+    if (e.key === "Escape") {
+      if (fullscreen) {
+        setFullscreen(false);
+        return;
+      }
+      if (openField) {
+        setOpenField(null);
+        return;
+      }
     }
-    // Only collapse — preserve input so the user doesn't lose work.
-    setExpanded(false);
+  };
+
+  const buildFieldHint = (): string => {
+    const hints: string[] = [];
+    if (assignee.trim()) hints.push(`参与人: ${assignee.trim()}`);
+    if (projectId) {
+      const proj = projects.find((p) => p.id === projectId);
+      if (proj) hints.push(`项目: ${proj.name}`);
+    }
+    if (priority !== "medium") {
+      const label = priority === "high" ? "高" : priority === "low" ? "低" : "urgent";
+      hints.push(`优先级: ${label}`);
+    }
+    if (dueAt && dueAtPrecision !== "none") {
+      hints.push(`截止时间: 已设置(${dueAtPrecision})`);
+    }
+    if (description.trim()) hints.push(`描述: ${description.trim().slice(0, 200)}`);
+    return hints.length > 0 ? `\n\n[用户已预设]\n${hints.join("\n")}` : "";
   };
 
   const handleAiOrganize = async () => {
@@ -91,11 +146,30 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
 
     setAiLoading(true);
     try {
-      const todos = await addTodoFromAi(input);
+      const aiInput = text + buildFieldHint();
+      const todos = await addTodoFromAi(aiInput);
       if (todos.length === 0) return;
       const firstTodo = todos[0];
+
+      // Save recent assignee on success
+      if (assignee.trim()) {
+        const updated = [
+          assignee.trim(),
+          ...recentAssignees.filter((a) => a !== assignee.trim()),
+        ].slice(0, MAX_RECENT_ASSIGNEES);
+        setRecentAssignees(updated);
+        persistRecentAssignees(updated);
+      }
+
+      // Reset
       setInput("");
-      setExpanded(false);
+      setAssignee("");
+      setProjectId("");
+      setPriority("medium");
+      setDueAt(null);
+      setDueAtPrecision("none");
+      setDescription("");
+      setOpenField(null);
       setFullscreen(false);
       onTodoCreated?.(firstTodo.id);
 
@@ -113,7 +187,10 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
               {todos.length > 1 && (
                 <ul className="mt-1 space-y-0.5">
                   {todos.map((item) => (
-                    <li key={item.id} className="truncate text-xs text-muted-foreground">
+                    <li
+                      key={item.id}
+                      className="truncate text-xs text-muted-foreground"
+                    >
                       · {item.title}
                     </li>
                   ))}
@@ -127,9 +204,8 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                   .then((original) => {
                     if (!original) return;
                     setInput(original);
-                    setExpanded(true);
                     setFullscreen(false);
-                    setMode("compose");
+                    setOpenField(null);
                     toast.dismiss(t);
                     toast.info("已撤销，原始输入已恢复");
                   })
@@ -144,116 +220,309 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
         { duration: 6000 }
       );
     } catch (error) {
-      toast.error(error instanceof Error ? `AI 整理失败：${error.message}` : "AI 整理失败");
+      toast.error(
+        error instanceof Error ? `AI 整理失败：${error.message}` : "AI 整理失败"
+      );
     } finally {
       setAiLoading(false);
     }
   };
 
-  const handleFieldsAdd = async (fields: {
-    title: string;
-    priority: Parameters<typeof addTodo>[0]["priority"];
-    dueAt?: string;
-    dueAtPrecision?: Parameters<typeof addTodo>[0]["dueAtPrecision"];
-    projectId?: string;
-    assignee?: string;
-    contentMarkdown: string;
-  }) => {
+  const handleCreateProject = async () => {
+    const name = newProjectName.trim();
+    if (!name) return;
     try {
-      const todo = await addTodo({
-        title: fields.title,
-        priority: fields.priority,
-        dueAt: fields.dueAt,
-        dueAtPrecision: fields.dueAtPrecision,
-        projectId: fields.projectId,
-        tagIds: [],
-        assignee: fields.assignee,
-        contentMarkdown: fields.contentMarkdown,
-      });
-      setExpanded(false);
-      onTodoCreated?.(todo.id);
-      toast.success(`已添加：${fields.title}`);
+      const project = await addProject(name);
+      setProjectId(project.id);
+      setNewProjectName("");
+      setIsCreatingProject(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "添加失败，请稍后重试");
-      throw error;
+      toast.error(error instanceof Error ? error.message : "项目创建失败");
     }
   };
 
-  const hasComposeInput = input.trim().length > 0;
-  const openFullscreen = () => {
-    setExpanded(true);
-    setMode("compose");
-    setFullscreen(true);
+  const handleProjectSelect = (value: string) => {
+    if (value === NEW_PROJECT_VALUE) {
+      setIsCreatingProject(true);
+      setNewProjectName("");
+      return;
+    }
+    setIsCreatingProject(false);
+    setProjectId(value);
   };
-  const clearCompose = () => {
-    setInput("");
-    setFullscreen(false);
-    setExpanded(false);
+
+  const removeRecentAssignee = (name: string) => {
+    const updated = recentAssignees.filter((a) => a !== name);
+    setRecentAssignees(updated);
+    persistRecentAssignees(updated);
+  };
+
+  const hasComposeInput = input.trim().length > 0;
+  const selectedProject = projects.find((p) => p.id === projectId);
+  const countTodosForProject = (id: string) =>
+    todos.filter(
+      (t) =>
+        t.projectId === id &&
+        t.status !== "done" &&
+        t.status !== "cancelled"
+    ).length;
+  const openFullscreen = () => setFullscreen(true);
+  const closeFullscreen = () => setFullscreen(false);
+
+  const toggleField = (key: FieldKey) => {
+    setOpenField((prev) => (prev === key ? null : key));
   };
 
   return (
     <div ref={composerRef} className="relative">
-      <div
-        className={cn(
-          "smart-composer-card glass-card relative rounded-2xl transition-all duration-200",
-          expanded
-            ? "ring-1 ring-primary/30 shadow-lg shadow-primary/5"
-            : ""
-        )}
-      >
-        {/* Mode switch (only when expanded) */}
-        {expanded && (
-          <ComposerModeSwitch mode={mode} onModeChange={setMode} />
+      <div className="smart-composer-card glass-card relative rounded-2xl ring-1 ring-primary/30 shadow-lg shadow-primary/5 transition-all duration-200">
+        {/* Main markdown input */}
+        <MarkdownEditor
+          value={input}
+          onChange={setInput}
+          textareaRef={textareaRef}
+          onKeyDown={handleKeyDown}
+          placeholder="写下待办内容，支持 Markdown，或使用 AI 整理…"
+          rows={4}
+          autoFocus
+          rich
+          toolbarMode="responsive"
+          onAiOrganize={handleAiOrganize}
+          aiLoading={aiLoading}
+          aiDisabled={!hasComposeInput}
+          showFullscreenToggle
+          onToggleFullscreen={openFullscreen}
+          fullscreenToggleLabel="全屏输入"
+          resizableY
+          defaultHeight={180}
+          minHeight={150}
+          maxHeight={420}
+          toolbarClassName="px-4 pt-4"
+          textareaClassName="px-4 pb-6 pt-3 text-sm leading-relaxed"
+        />
+
+        {/* Field panel — one slot at a time, opens below the input */}
+        {openField && (
+          <div className="mx-4 mb-3 rounded-xl border border-border/45 bg-muted/30 p-3">
+            {openField === "assignee" && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <User className="w-3 h-3" /> 参与人
+                </label>
+                <input
+                  autoFocus
+                  value={assignee}
+                  onChange={(e) => setAssignee(e.target.value)}
+                  placeholder="姓名 / 邮箱"
+                  className="field-input w-full"
+                />
+                {recentAssignees.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-muted-foreground">历史:</span>
+                    {recentAssignees.map((name) => (
+                      <span
+                        key={name}
+                        className="group/ra inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5 text-[11px] text-foreground"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setAssignee(name)}
+                          className="hover:text-primary"
+                        >
+                          {name}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeRecentAssignee(name)}
+                          className="text-muted-foreground/50 hover:text-destructive"
+                          aria-label={`删除历史人名 ${name}`}
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {openField === "project" && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <FolderOpen className="w-3 h-3" /> 项目
+                </label>
+                <div className="flex items-center gap-1">
+                  <select
+                    value={projectId || (isCreatingProject ? NEW_PROJECT_VALUE : "")}
+                    onChange={(e) => handleProjectSelect(e.target.value)}
+                    className="field-input flex-1 min-w-0"
+                  >
+                    <option value="">未分配</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                    <option value={NEW_PROJECT_VALUE}>+ 新建项目…</option>
+                  </select>
+                  {projectId && selectedProject && (
+                    <button
+                      type="button"
+                      onClick={() => setProjectDeleteTarget(selectedProject)}
+                      className="flex-shrink-0 p-1.5 rounded text-muted-foreground hover:text-destructive transition-colors"
+                      aria-label="删除当前项目"
+                      title="删除项目"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {isCreatingProject && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleCreateProject();
+                      }}
+                      placeholder="新项目名称…"
+                      className="field-input flex-1 min-w-0"
+                    />
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        void handleCreateProject();
+                      }}
+                      className="flex-shrink-0 p-1 text-emerald-500 hover:text-emerald-400"
+                      aria-label="确认新建项目"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProjectId("");
+                        setNewProjectName("");
+                      }}
+                      className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
+                      aria-label="取消"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {openField === "priority" && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <Flag className="w-3 h-3" /> 优先级
+                </label>
+                <div className="flex gap-1.5">
+                  {PRIORITY_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setPriority(option.value as TodoPriority)}
+                      className={cn(
+                        "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
+                        priority === option.value
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-border/45 bg-background/60 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {openField === "due" && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <Calendar className="w-3 h-3" /> 截止时间
+                </label>
+                <DuePrecisionPicker
+                  dueAt={dueAt}
+                  precision={dueAtPrecision}
+                  onChange={(next) => {
+                    setDueAt(next.dueAt);
+                    setDueAtPrecision(next.dueAtPrecision);
+                  }}
+                />
+              </div>
+            )}
+
+            {openField === "description" && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
+                </label>
+                <MarkdownEditor
+                  value={description}
+                  onChange={setDescription}
+                  placeholder="可选，支持 Markdown 格式…"
+                  rows={3}
+                  rich
+                  resizableY
+                  defaultHeight={120}
+                  minHeight={88}
+                  maxHeight={280}
+                  textareaClassName="px-2.5 py-2 pb-5 text-xs leading-relaxed"
+                  className="overflow-hidden rounded-lg border border-border/45 bg-background/60 focus-within:border-primary/45"
+                />
+              </div>
+            )}
+          </div>
         )}
 
-        {/* ===== COMPOSE MODE ===== */}
-        {!expanded && (
-          <CollapsedComposer
-            value={input}
-            textareaRef={textareaRef}
-            hasInput={hasComposeInput}
-            onChange={setInput}
-            onExpand={() => setExpanded(true)}
-            onClear={clearCompose}
-            onOpenFullscreen={openFullscreen}
-            onKeyDown={handleKeyDown}
-          />
-        )}
-
-        {expanded && mode === "compose" && (
-          <MarkdownEditor
-            value={input}
-            onChange={setInput}
-            textareaRef={textareaRef}
-            onKeyDown={handleKeyDown}
-            placeholder="写下待办内容，支持 Markdown，或使用 AI 整理…"
-            rows={4}
-            autoFocus
-            rich
-            toolbarMode="responsive"
-            onAiOrganize={handleAiOrganize}
-            aiLoading={aiLoading}
-            aiDisabled={!hasComposeInput}
-            showFullscreenToggle
-            onToggleFullscreen={openFullscreen}
-            fullscreenToggleLabel="全屏输入"
-            resizableY
-            defaultHeight={180}
-            minHeight={150}
-            maxHeight={420}
-            toolbarClassName="px-4 pt-4"
-            textareaClassName="px-4 pb-6 pt-3 text-sm leading-relaxed"
-          />
-        )}
-
-        {/* ===== FIELDS MODE ===== */}
-        {expanded && mode === "fields" && (
-          <StructuredTodoForm
-            projects={projects}
-            onCancel={() => setExpanded(false)}
-            onAddTodo={handleFieldsAdd}
-          />
-        )}
+        {/* 5 lightweight field buttons + fullscreen/AI on the right */}
+        <div className="flex items-center justify-between gap-1.5 px-3 py-2 border-t border-border/30">
+          <div className="flex flex-wrap items-center gap-1">
+            <FieldButton
+              icon={User}
+              label="参与人"
+              active={openField === "assignee"}
+              value={assignee}
+              onClick={() => toggleField("assignee")}
+            />
+            <FieldButton
+              icon={FolderOpen}
+              label="项目"
+              active={openField === "project"}
+              value={selectedProject?.name ?? ""}
+              emptyLabel="未分配"
+              onClick={() => toggleField("project")}
+            />
+            <FieldButton
+              icon={Flag}
+              label="优先级"
+              active={openField === "priority"}
+              value={priority !== "medium" ? priority : ""}
+              emptyLabel="中"
+              onClick={() => toggleField("priority")}
+            />
+            <FieldButton
+              icon={Calendar}
+              label="截止"
+              active={openField === "due"}
+              value={dueAtPrecision !== "none" ? dueAtPrecision : ""}
+              emptyLabel="无"
+              onClick={() => toggleField("due")}
+            />
+            <FieldButton
+              icon={Edit3}
+              label="描述"
+              active={openField === "description"}
+              value={description ? "已填写" : ""}
+              onClick={() => toggleField("description")}
+            />
+          </div>
+        </div>
       </div>
 
       {fullscreen && (
@@ -263,11 +532,41 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
           hasInput={hasComposeInput}
           aiLoading={aiLoading}
           onChange={setInput}
-          onClose={() => setFullscreen(false)}
+          onClose={closeFullscreen}
           onKeyDown={handleKeyDown}
           onAiOrganize={handleAiOrganize}
         />
       )}
+
+      {/* Project delete confirmation */}
+      <ProjectDeleteDialog
+        open={projectDeleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setProjectDeleteTarget(null);
+        }}
+        project={projectDeleteTarget}
+        todoCount={
+          projectDeleteTarget
+            ? countTodosForProject(projectDeleteTarget.id)
+            : 0
+        }
+        onConfirm={async (mode) => {
+          if (!projectDeleteTarget) return;
+          try {
+            await deleteProject(projectDeleteTarget.id, mode);
+            setProjectId("");
+            setProjectDeleteTarget(null);
+            toast.success(
+              mode === "delete"
+                ? `项目「${projectDeleteTarget.name}」及其待办已删除`
+                : `项目「${projectDeleteTarget.name}」已删除，待办已移到未分配`
+            );
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "删除项目失败");
+            throw error;
+          }
+        }}
+      />
 
       {/* Persistent undo entry — survives after the 6s toast disappears */}
       {undoRecord && !aiLoading && (
@@ -278,9 +577,8 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
               .then((original) => {
                 if (!original) return;
                 setInput(original);
-                setExpanded(true);
                 setFullscreen(false);
-                setMode("compose");
+                setOpenField(null);
                 toast.info("已撤销，原始输入已恢复");
               })
               .catch(() => toast.error("撤销失败，请稍后重试"));
@@ -292,5 +590,38 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
         </button>
       )}
     </div>
+  );
+}
+
+interface FieldButtonProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  active: boolean;
+  value: string;
+  emptyLabel?: string;
+  onClick: () => void;
+}
+
+function FieldButton({ icon: Icon, label, active, value, emptyLabel, onClick }: FieldButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+        active
+          ? "bg-primary/12 text-primary"
+          : value
+            ? "text-foreground"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+      )}
+    >
+      <Icon className="w-3 h-3" />
+      {value ? (
+        <span className="max-w-[80px] truncate">{value}</span>
+      ) : (
+        <span>{label}</span>
+      )}
+    </button>
   );
 }
