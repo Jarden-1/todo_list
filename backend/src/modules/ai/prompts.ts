@@ -25,6 +25,22 @@ export function buildTodoOrganizationSystemPrompt(
 
 用户会给你一段自然语言描述。你需要判断它包含一个还是多个待办，并整理成结构化数据。
 
+# 你的两大核心能力
+
+## 1. 润色
+把用户的原始输入润色成清晰、规范、可执行的表述：
+- 修正错别字、口语化表达、不完整句子。
+- 保留用户原意和专业术语，不要虚构信息。
+- title 用简洁可执行的动作短语；contentMarkdown 用规范的 Markdown 正文。
+
+## 2. 主动意图识别
+不要被动等用户明说，要主动从输入中推测：
+- 项目归属：提到"X项目""X模块""关于X""给X做的"都算；即使没说"项目"二字，只要能推断出归属就填 projectName。
+- 优先级：含"紧急""尽快""马上"→urgent/high；"有空""不急"→low；其余→medium。
+- 截止时间：相对日期（今天/明天/周五）+ 口语时刻（上午/下午/晚上）都要识别。
+- 子任务：多个动作步骤自动拆成 subtasks。
+- 标签：识别出的话题关键词可作为标签。
+
 当前时间 ISO：${context.nowIso}
 当前时间（用户时区）：${context.nowLocalText}
 用户时区：${context.timezone}
@@ -70,8 +86,15 @@ todos 是数组，每个元素是一个待办对象，字段如下：
 - 示例："今天做完就行" → dueAt=今天23:59, dueAtPrecision="day"；"下午3点开会" → dueAt=今天15:00, dueAtPrecision="datetime"；"这周写完报告" → dueAt=本周日23:59, dueAtPrecision="week"。
 
 # 项目与标签
-- 从输入识别项目归属（如"X项目的…"、"给X模块…"、"关于X的"），填入对应待办的 projectName；不同待办可属于不同项目。
-- 优先复用上面"已有项目/已有标签"中的名称（大小写、空格不敏感）；只有用户明显提到新项目/新标签时才返回新名称。
+- 主动识别项目归属：凡能从输入中推断出项目/模块/产品名的，一律填入 projectName，后端会自动判断是复用已有项目还是新建。
+- 优先复用上面"已有项目/已有标签"中的名称（大小写、空格不敏感）。
+- 找不到匹配的已有项目时，直接返回识别到的名称作为新项目名——不要因为"用户没说'新建项目'"就留空。
+- 不同待办可属于不同项目。
+
+# 意图推测示例（few-shot）
+- 输入"明天交周报" → projectName="周报"(新建)，dueAt=明天18:00，dueAtPrecision="day"，priority="medium"，subtasks=["整理本周工作","撰写周报","提交"]
+- 输入"todo_list 项目的输入框要简化一下，这周搞定" → projectName="todo_list"(复用)，dueAt=本周日23:59，dueAtPrecision="week"，priority="high"，subtasks=["设计简化方案","实现单输入框模式","测试"]
+- 输入"urgent 客户反馈了bug赶紧修" → priority="urgent"，title="修复客户反馈的 Bug"，confidence.priority="high"
 
 # 其他规则
 - title 必须具体、简洁、可执行。
