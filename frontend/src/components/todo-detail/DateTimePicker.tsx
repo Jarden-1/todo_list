@@ -90,12 +90,15 @@ export function DateTimePicker({ mode, value, onConfirm, overdue = false }: Date
   }, [viewYear, viewMonth]);
 
   // ── Draft mutators (do NOT call onConfirm) ───────────────────────────
+  // In "date" mode the semantic is "done by end of that day", so we pin
+  // to 23:59 — NOT 00:00 (which would mean "before midnight" and make a
+  // todo picked for "today" instantly overdue).
   const handleSelectDate = (day: Date) => {
     const next = new Date(day);
     if (mode === "datetime") {
       next.setHours(anchor.getHours(), anchor.getMinutes(), 0, 0);
     } else {
-      next.setHours(0, 0, 0, 0);
+      next.setHours(23, 59, 0, 0);
     }
     setDraft(next.toISOString());
   };
@@ -111,7 +114,7 @@ export function DateTimePicker({ mode, value, onConfirm, overdue = false }: Date
   const handleToday = () => {
     const today = new Date();
     if (mode === "date") {
-      today.setHours(0, 0, 0, 0);
+      today.setHours(23, 59, 0, 0);
     } else {
       const hasUserTime = draft !== null;
       today.setHours(
