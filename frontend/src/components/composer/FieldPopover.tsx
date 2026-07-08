@@ -2,6 +2,11 @@
 // document.body via a React portal so it escapes any `overflow: hidden`
 // ancestor (e.g. the composer's grid collapse container) and can never be
 // clipped by the card.
+//
+// **Flip behaviour**: the popover is placed BELOW the trigger by default;
+// if there isn't enough room below the trigger for the popover's measured
+// height, it flips above. If neither side fits (the content is taller than
+// the viewport itself), we pin it to the viewport top with a small margin.
 import {
   useEffect,
   useLayoutEffect,
@@ -45,11 +50,10 @@ export function FieldPopover({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  // Recompute the popover's fixed position from the trigger's bounding rect.
-  // We re-run on open, on window scroll (capture phase so we catch ancestors
-  // that scroll too), and on resize. min-w-[220px] is the default panel
-  // width, so we anchor against 220 to keep the panel aligned with the
-  // trigger when `align="end"`.
+  // Position the popover based on the trigger's rect and the popover's
+  // measured height. The popover is always mounted when `open` (visibility
+  // toggled via the `invisible` class) so `popoverRef.current.offsetHeight`
+  // is reliable on the first measurement pass.
   useLayoutEffect(() => {
     if (!open) {
       setPos(null);
@@ -57,10 +61,29 @@ export function FieldPopover({
     }
     const update = () => {
       const t = triggerRef.current;
+      const p = popoverRef.current;
       if (!t) return;
       const r = t.getBoundingClientRect();
+      const popoverHeight = p?.offsetHeight ?? 0;
+      const viewportH = window.innerHeight;
+      const spaceBelow = viewportH - r.bottom - GAP_PX;
+      const spaceAbove = r.top - GAP_PX;
+      const fitsBelow = popoverHeight === 0 || spaceBelow >= popoverHeight;
+      const fitsAbove = popoverHeight > 0 && spaceAbove >= popoverHeight;
+      let top: number;
+      if (!fitsBelow && spaceAbove > spaceBelow && fitsAbove) {
+        // Flip above the trigger
+        top = Math.max(GAP_PX, r.top - GAP_PX - popoverHeight);
+      } else if (!fitsBelow && !fitsAbove) {
+        // Content is taller than the viewport itself — pin to the top
+        // with a small margin so the user can at least see the header.
+        top = GAP_PX;
+      } else {
+        // Default: below the trigger
+        top = r.bottom + GAP_PX;
+      }
       setPos({
-        top: r.bottom + GAP_PX,
+        top,
         left: align === "end" ? r.right - 220 : r.left,
       });
     };
@@ -104,15 +127,15 @@ export function FieldPopover({
         {trigger}
       </div>
       {open &&
-        pos !== null &&
         createPortal(
           <div
             ref={popoverRef}
             className={cn(
               "fixed z-50 min-w-[220px] rounded-xl border border-border/60 bg-popover p-3 text-popover-foreground shadow-xl",
+              pos === null && "invisible",
               className,
             )}
-            style={{ top: pos.top, left: pos.left }}
+            style={pos ?? { top: 0, left: 0 }}
           >
             {children}
           </div>,
@@ -121,3 +144,4 @@ export function FieldPopover({
     </>
   );
 }
+
