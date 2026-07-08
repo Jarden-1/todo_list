@@ -165,6 +165,17 @@ async function sendPushForNotification(
   event: NotificationEvent,
   now: Date
 ): Promise<{ sent: number; failed: number }> {
+  // Honor the user's "reminders enabled" setting. If they turned off
+  // ringtone in the UI, don't send Web Push — that setting controls all
+  // forms of reminders, not just the in-page dialog.
+  const userSettings = await deps.prisma.userSetting.findUnique({
+    where: { userId: reminder.userId },
+    select: { ringtoneEnabled: true }
+  });
+  if (userSettings && !userSettings.ringtoneEnabled) {
+    return { sent: 0, failed: 0 };
+  }
+
   const subscriptions = await deps.prisma.webPushSubscription.findMany({
     where: {
       userId: reminder.userId,
