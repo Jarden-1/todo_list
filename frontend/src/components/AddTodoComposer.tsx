@@ -73,7 +73,8 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
   const [openField, setOpenField] = useState<FieldKey | null>(null);
 
   // Form fields
-  const [assignee, setAssignee] = useState("");
+  const [assignees, setAssignees] = useState<string[]>([]);
+  const [assigneeInput, setAssigneeInput] = useState("");
   const [projectId, setProjectId] = useState<string>("");
   const [priority, setPriority] = useState<TodoPriority>("medium");
   const [dueAt, setDueAt] = useState<string | null>(null);
@@ -127,7 +128,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
 
   const buildFieldHint = (): string => {
     const hints: string[] = [];
-    if (assignee.trim()) hints.push(`参与人: ${assignee.trim()}`);
+    if (assignees.length > 0) hints.push(`参与人: ${assignees.join(", ")}`);
     if (projectId) {
       const proj = projects.find((p) => p.id === projectId);
       if (proj) hints.push(`项目: ${proj.name}`);
@@ -154,19 +155,22 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       if (todos.length === 0) return;
       const firstTodo = todos[0];
 
-      // Save recent assignee on success
-      if (assignee.trim()) {
-        const updated = [
-          assignee.trim(),
-          ...recentAssignees.filter((a) => a !== assignee.trim()),
-        ].slice(0, MAX_RECENT_ASSIGNEES);
+      // Save recent assignees on success — each one independently.
+      if (assignees.length > 0) {
+        let updated = [...recentAssignees];
+        for (const name of assignees) {
+          const trimmed = name.trim();
+          if (!trimmed) continue;
+          updated = [trimmed, ...updated.filter((a) => a !== trimmed)].slice(0, MAX_RECENT_ASSIGNEES);
+        }
         setRecentAssignees(updated);
         persistRecentAssignees(updated);
       }
 
       // Reset
       setInput("");
-      setAssignee("");
+      setAssignees([]);
+      setAssigneeInput("");
       setProjectId("");
       setPriority("medium");
       setDueAt(null);
@@ -360,7 +364,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                       icon={User}
                       label="参与人"
                       active={openField === "assignee"}
-                      value={assignee}
+                      value={assignees.length > 0 ? `${assignees.length} 人` : ""}
                       onClick={() => toggleField("assignee")}
                     />
                   }
@@ -369,16 +373,40 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                       <User className="w-3 h-3" /> 参与人
                     </label>
+                    {assignees.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {assignees.map((name, index) => (
+                          <span
+                            key={`${name}-${index}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-foreground"
+                          >
+                            {name}
+                            <button
+                              type="button"
+                              onClick={() => setAssignees((prev) => prev.filter((_, i) => i !== index))}
+                              className="text-muted-foreground/60 hover:text-destructive transition-colors"
+                              aria-label={`移除 ${name}`}
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <input
-                      value={assignee}
-                      onChange={(e) => setAssignee(e.target.value)}
+                      value={assigneeInput}
+                      onChange={(e) => setAssigneeInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          setOpenField(null);
+                          const trimmed = assigneeInput.trim();
+                          if (trimmed && !assignees.includes(trimmed)) {
+                            setAssignees((prev) => [...prev, trimmed]);
+                          }
+                          setAssigneeInput("");
                         }
                       }}
-                      placeholder="姓名 / 邮箱（Enter 确认）"
+                      placeholder="姓名 / 邮箱（Enter 添加）"
                       className="field-input w-full"
                     />
                     {recentAssignees.length > 0 && (
@@ -392,8 +420,9 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
                             <button
                               type="button"
                               onClick={() => {
-                                setAssignee(name);
-                                setOpenField(null);
+                                if (!assignees.includes(name)) {
+                                  setAssignees((prev) => [...prev, name]);
+                                }
                               }}
                               className="hover:text-primary"
                             >
