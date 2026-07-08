@@ -706,6 +706,11 @@ function FieldButton({ icon: Icon, label, active, value, emptyLabel, onClick }: 
     <button
       type="button"
       onClick={onClick}
+      // Keep the markdown editor's caret alive when the user clicks a field
+      // button. Without this, the button steals focus on mousedown and the
+      // editor caret disappears — the user has to click the editor again to
+      // resume typing. The onClick handler still fires normally.
+      onMouseDown={(event) => event.preventDefault()}
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
         active
