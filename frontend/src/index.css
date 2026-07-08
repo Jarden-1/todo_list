@@ -140,3 +140,10 @@
   --app-divider: oklch(1 0 0 / 7%);
   --sidebar-divider: oklch(1 0 0 / 6%);
 }
+
+/* Smart composer — smooth height collapse/expand via grid-template-rows.
+   The 0fr → 1fr transition needs min-height:0 on the grid child so the
+   row can actually shrink to zero. */
+.smart-composer-card > .grid > .overflow-hidden {
+  min-height: 0;
+}

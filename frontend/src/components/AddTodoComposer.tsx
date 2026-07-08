@@ -39,14 +39,29 @@ interface AddTodoComposerProps {
 export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProps) {
   const [input, setInput] = useState("");
   const [expanded, setExpanded] = useState(false);
+  // Controls whether the expanded DOM is actually mounted. We keep it
+  // mounted for ~300ms after collapsing so the grid height transition has
+  // real content to shrink — without this the collapse is instant.
+  const [renderExpanded, setRenderExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [openField, setOpenField] = useState<FieldKey | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dueAtInputRef = useRef<HTMLInputElement>(null);
   const collapseTimerRef = useRef<number | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [openField, setOpenField] = useState<FieldKey | null>(null);
+  const unmountTimerRef = useRef<number | null>(null);
+
+  // Refs that always hold the latest values — used inside setTimeout
+  // callbacks so we never read a stale closure value when deciding whether
+  // to collapse.
+  const inputRef = useRef(input);
+  const openFieldRef = useRef<FieldKey | null>(null);
+  const fullscreenRef = useRef(fullscreen);
+  inputRef.current = input;
+  openFieldRef.current = openField;
+  fullscreenRef.current = fullscreen;
 
   // Form fields
   const [assignees, setAssignees] = useState<string[]>([]);
@@ -87,13 +102,78 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
       window.clearTimeout(collapseTimerRef.current);
       collapseTimerRef.current = null;
     }
+    if (unmountTimerRef.current) {
+      window.clearTimeout(unmountTimerRef.current);
+      unmountTimerRef.current = null;
+    }
     setOpenField(null);
     setFullscreen(false);
     setExpanded(false);
+    setRenderExpanded(false);
   }, [resetKey]);
 
+  // Sync renderExpanded with expanded:
+  // - Expand: mount the expanded DOM immediately so the grid can grow.
+  // - Collapse: keep it mounted for 300ms so the grid transition has real
+  //   content to shrink, then unmount.
+  useEffect(() => {
+    if (unmountTimerRef.current) {
+      window.clearTimeout(unmountTimerRef.current);
+      unmountTimerRef.current = null;
+    }
+    if (expanded) {
+      setRenderExpanded(true);
+    } else {
+      unmountTimerRef.current = window.setTimeout(() => {
+        setRenderExpanded(false);
+      }, 300);
+    }
+    return () => {
+      if (unmountTimerRef.current) {
+        window.clearTimeout(unmountTimerRef.current);
+        unmountTimerRef.current = null;
+      }
+    };
+  }, [expanded]);
+
+  // Clear collapse timer when the user re-focuses the composer (e.g. starts
+  // typing again before the delayed collapse fires).
+  const handleComposerFocus = () => {
+    if (collapseTimerRef.current) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+  };
+
+  // Close any open popover AND, if there's no input / no fullscreen, schedule
+  // a delayed collapse. This is the single entry point that connects "the
+  // user is done with the fields" to "the composer should fold back down".
+  const closeField = () => {
+    setOpenField(null);
+    openFieldRef.current = null;
+    if (fullscreenRef.current) return;
+    if (inputRef.current.trim()) return;
+    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
+    collapseTimerRef.current = window.setTimeout(() => {
+      // Re-check with latest refs — the user may have started typing or
+      // opened another popover during the delay.
+      if (
+        !inputRef.current.trim() &&
+        !fullscreenRef.current &&
+        openFieldRef.current === null
+      ) {
+        setExpanded(false);
+      }
+    }, 200);
+  };
+
   const toggleField = (key: FieldKey) => {
-    setOpenField((prev) => (prev === key ? null : key));
+    // If clicking the field that's already open, close it (and maybe collapse).
+    if (openField === key) {
+      closeField();
+      return;
+    }
+    setOpenField(key);
   };
 
   const addAssignee = (name: string) => {
@@ -155,6 +235,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
       setOpenField(null);
       setFullscreen(false);
       setExpanded(false);
+      setRenderExpanded(false);
       onTodoCreated?.(firstTodo.id);
 
       const summary =
@@ -223,7 +304,7 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
         return;
       }
       if (openField) {
-        setOpenField(null);
+        closeField();
         return;
       }
     }
@@ -281,18 +362,12 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
     collapseTimerRef.current = window.setTimeout(() => {
       const active = document.activeElement;
       if (active && composerRef.current?.contains(active)) return;
-      if (!input.trim() && !openField && !fullscreen) {
+      if (!inputRef.current.trim() && openFieldRef.current === null && !fullscreenRef.current) {
         setExpanded(false);
         setOpenField(null);
+        openFieldRef.current = null;
       }
-    }, 120);
-  };
-
-  const handleComposerFocus = () => {
-    if (collapseTimerRef.current) {
-      window.clearTimeout(collapseTimerRef.current);
-      collapseTimerRef.current = null;
-    }
+    }, 200);
   };
 
   return (
@@ -301,197 +376,227 @@ export function AddTodoComposer({ onTodoCreated, resetKey }: AddTodoComposerProp
         onBlur={handleComposerBlur}
         onFocus={handleComposerFocus}
         className={cn(
-          "smart-composer-card glass-card relative rounded-2xl ring-1 transition-all duration-200",
+          "smart-composer-card glass-card relative rounded-2xl ring-1 transition-all duration-300 ease-out",
           expanded
             ? "ring-primary/30 shadow-lg shadow-primary/5"
             : "ring-border/40 shadow-sm hover:ring-border/70"
         )}
       >
-        {expanded ? (
-          <>
-            <MarkdownEditor
-              value={input}
-              onChange={setInput}
-              textareaRef={textareaRef}
-              onKeyDown={handleKeyDown}
-              placeholder="写下待办内容，支持 Markdown，AI 润色……"
-              rows={3}
-              autoFocus
-              rich
-              toolbarMode="responsive"
-              onAiOrganize={handleAiOrganize}
-              aiLoading={aiLoading}
-              aiDisabled={!hasComposeInput}
-              showFullscreenToggle
-              onToggleFullscreen={() => setFullscreen(true)}
-              fullscreenToggleLabel="全屏输入"
-              defaultHeight={130}
-              minHeight={110}
-              maxHeight={380}
-              toolbarClassName="px-4 pt-3"
-              textareaClassName="px-4 pb-5 pt-2 text-sm leading-relaxed"
-            />
+        {/* Collapsed placeholder — always rendered; the grid row animates
+            between 1fr (visible) and 0fr (hidden) so the collapse/expand is
+            a smooth height transition instead of a DOM swap. */}
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows] duration-300 ease-out",
+            expanded ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+          )}
+        >
+          <div className="overflow-hidden">
+            <button
+              type="button"
+              onClick={expandComposer}
+              tabIndex={expanded ? -1 : 0}
+              aria-hidden={expanded}
+              className={cn(
+                "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:text-foreground",
+                expanded && "pointer-events-none"
+              )}
+            >
+              <Plus className="h-4 w-4 flex-shrink-0 text-primary/70" />
+              <span className="truncate">写下待办内容，支持 Markdown，AI 润色……</span>
+            </button>
+          </div>
+        </div>
 
-            <div className="flex items-center justify-between gap-1.5 px-3 py-2 border-t border-border/30">
-              <div className="flex flex-wrap items-center gap-1">
-                <AssigneePopover
-                  open={openField === "assignee"}
-                  onOpenChange={(o) => setOpenField(o ? "assignee" : null)}
-                  onToggle={() => toggleField("assignee")}
-                  assignees={assignees}
-                  assigneeInput={assigneeInput}
-                  recentAssignees={recentAssignees}
-                  onAssigneeInputChange={setAssigneeInput}
-                  onAddAssignee={addAssignee}
-                  onRemoveAssignee={(index) =>
-                    setAssignees((prev) => prev.filter((_, i) => i !== index))
-                  }
-                  onRemoveRecentAssignee={removeRecentAssignee}
+        {/* Expanded content — rendered (mounted) whenever expanded OR while
+            the collapse transition is still running (renderExpanded). The
+            grid row animates from 0fr → 1fr on expand and 1fr → 0fr on
+            collapse, with the DOM unmounting 300ms after collapse starts. */}
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows] duration-300 ease-out",
+            expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          )}
+        >
+          <div className="overflow-hidden">
+            {renderExpanded && (
+              <>
+                <MarkdownEditor
+                  value={input}
+                  onChange={setInput}
+                  textareaRef={textareaRef}
+                  onKeyDown={handleKeyDown}
+                  placeholder="写下待办内容，支持 Markdown，AI 润色……"
+                  rows={3}
+                  autoFocus
+                  rich
+                  toolbarMode="responsive"
+                  onAiOrganize={handleAiOrganize}
+                  aiLoading={aiLoading}
+                  aiDisabled={!hasComposeInput}
+                  showFullscreenToggle
+                  onToggleFullscreen={() => setFullscreen(true)}
+                  fullscreenToggleLabel="全屏输入"
+                  defaultHeight={130}
+                  minHeight={110}
+                  maxHeight={380}
+                  toolbarClassName="px-4 pt-3"
+                  textareaClassName="px-4 pb-5 pt-2 text-sm leading-relaxed"
                 />
 
-                <ProjectPopover
-                  open={openField === "project"}
-                  onOpenChange={(o) => setOpenField(o ? "project" : null)}
-                  onToggle={() => toggleField("project")}
-                  projectId={projectId}
-                  projects={projects}
-                  selectedProject={selectedProject}
-                  isCreatingProject={isCreatingProject}
-                  newProjectName={newProjectName}
-                  onProjectSelect={handleProjectSelect}
-                  onCreateProject={() => void handleCreateProject()}
-                  onNewProjectNameChange={setNewProjectName}
-                  onCancelCreate={() => {
-                    setProjectId("");
-                    setNewProjectName("");
-                  }}
-                  onDeleteProject={() => setProjectDeleteTarget(selectedProject ?? null)}
-                />
-
-                <FieldPopover
-                  open={openField === "priority"}
-                  onOpenChange={(o) => setOpenField(o ? "priority" : null)}
-                  trigger={
-                    <FieldButton
-                      icon={Flag}
-                      label="优先级"
-                      active={openField === "priority"}
-                      value={priority !== "medium" ? priority : ""}
-                      emptyLabel="中"
-                      onClick={() => toggleField("priority")}
+                <div className="flex items-center justify-between gap-1.5 px-3 py-2 border-t border-border/30">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <AssigneePopover
+                      open={openField === "assignee"}
+                      onOpenChange={(o) => (o ? setOpenField("assignee") : closeField())}
+                      onToggle={() => toggleField("assignee")}
+                      assignees={assignees}
+                      assigneeInput={assigneeInput}
+                      recentAssignees={recentAssignees}
+                      onAssigneeInputChange={setAssigneeInput}
+                      onAddAssignee={addAssignee}
+                      onRemoveAssignee={(index) =>
+                        setAssignees((prev) => prev.filter((_, i) => i !== index))
+                      }
+                      onRemoveRecentAssignee={removeRecentAssignee}
                     />
-                  }
-                >
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <Flag className="w-3 h-3" /> 优先级
-                    </label>
-                    <div className="flex gap-1.5">
-                      {PRIORITY_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setPriority(option.value as TodoPriority)}
-                          className={cn(
-                            "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
-                            priority === option.value
-                              ? "border-primary/40 bg-primary/10 text-primary"
-                              : "border-border/45 bg-background/60 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-                          )}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </FieldPopover>
 
-                <FieldPopover
-                  open={openField === "due"}
-                  onOpenChange={(o) => setOpenField(o ? "due" : null)}
-                  className="min-w-[280px]"
-                  trigger={
-                    <FieldButton
-                      icon={Calendar}
-                      label="截止"
-                      active={openField === "due"}
-                      value={dueAtPrecision !== "none" ? dueAtPrecision : ""}
-                      emptyLabel="无"
-                      onClick={() => toggleField("due")}
-                    />
-                  }
-                >
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <Calendar className="w-3 h-3" /> 截止时间
-                    </label>
-                    <DuePrecisionPicker
-                      dueAt={dueAt}
-                      precision={dueAtPrecision}
-                      onChange={(next) => {
-                        setDueAt(next.dueAt);
-                        setDueAtPrecision(next.dueAtPrecision);
+                    <ProjectPopover
+                      open={openField === "project"}
+                      onOpenChange={(o) => (o ? setOpenField("project") : closeField())}
+                      onToggle={() => toggleField("project")}
+                      projectId={projectId}
+                      projects={projects}
+                      selectedProject={selectedProject}
+                      isCreatingProject={isCreatingProject}
+                      newProjectName={newProjectName}
+                      onProjectSelect={handleProjectSelect}
+                      onCreateProject={() => void handleCreateProject()}
+                      onNewProjectNameChange={setNewProjectName}
+                      onCancelCreate={() => {
+                        setProjectId("");
+                        setNewProjectName("");
                       }}
-                      datetimeRef={dueAtInputRef}
-                      onOpenDatetimePicker={openDuePicker}
+                      onDeleteProject={() => setProjectDeleteTarget(selectedProject ?? null)}
                     />
-                  </div>
-                </FieldPopover>
 
-                <FieldPopover
-                  open={openField === "description"}
-                  onOpenChange={(o) => setOpenField(o ? "description" : null)}
-                  className="min-w-[300px]"
-                  trigger={
-                    <FieldButton
-                      icon={Edit3}
-                      label="描述"
-                      active={openField === "description"}
-                      value={description ? "已填写" : ""}
-                      onClick={() => toggleField("description")}
-                    />
-                  }
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                        <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setOpenField(null)}
-                        className="text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
-                      >
-                        完成
-                      </button>
-                    </div>
-                    <MarkdownEditor
-                      value={description}
-                      onChange={setDescription}
-                      placeholder="可选，支持 Markdown 格式…"
-                      rows={3}
-                      rich
-                      defaultHeight={110}
-                      minHeight={88}
-                      maxHeight={240}
-                      textareaClassName="px-2.5 py-2 pb-5 text-xs leading-relaxed"
-                      className="overflow-hidden rounded-lg border border-border/45 bg-background/60 focus-within:border-primary/45"
-                    />
+                    <FieldPopover
+                      open={openField === "priority"}
+                      onOpenChange={(o) => (o ? setOpenField("priority") : closeField())}
+                      trigger={
+                        <FieldButton
+                          icon={Flag}
+                          label="优先级"
+                          active={openField === "priority"}
+                          value={priority !== "medium" ? priority : ""}
+                          emptyLabel="中"
+                          onClick={() => toggleField("priority")}
+                        />
+                      }
+                    >
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                          <Flag className="w-3 h-3" /> 优先级
+                        </label>
+                        <div className="flex gap-1.5">
+                          {PRIORITY_OPTIONS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setPriority(option.value as TodoPriority)}
+                              className={cn(
+                                "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
+                                priority === option.value
+                                  ? "border-primary/40 bg-primary/10 text-primary"
+                                  : "border-border/45 bg-background/60 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                              )}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </FieldPopover>
+
+                    <FieldPopover
+                      open={openField === "due"}
+                      onOpenChange={(o) => (o ? setOpenField("due") : closeField())}
+                      className="min-w-[280px]"
+                      trigger={
+                        <FieldButton
+                          icon={Calendar}
+                          label="截止"
+                          active={openField === "due"}
+                          value={dueAtPrecision !== "none" ? dueAtPrecision : ""}
+                          emptyLabel="无"
+                          onClick={() => toggleField("due")}
+                        />
+                      }
+                    >
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> 截止时间
+                        </label>
+                        <DuePrecisionPicker
+                          dueAt={dueAt}
+                          precision={dueAtPrecision}
+                          onChange={(next) => {
+                            setDueAt(next.dueAt);
+                            setDueAtPrecision(next.dueAtPrecision);
+                          }}
+                          datetimeRef={dueAtInputRef}
+                          onOpenDatetimePicker={openDuePicker}
+                        />
+                      </div>
+                    </FieldPopover>
+
+                    <FieldPopover
+                      open={openField === "description"}
+                      onOpenChange={(o) => (o ? setOpenField("description") : closeField())}
+                      className="min-w-[300px]"
+                      trigger={
+                        <FieldButton
+                          icon={Edit3}
+                          label="描述"
+                          active={openField === "description"}
+                          value={description ? "已填写" : ""}
+                          onClick={() => toggleField("description")}
+                        />
+                      }
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                            <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
+                          </label>
+                          <button
+                            type="button"
+                            onClick={closeField}
+                            className="text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
+                          >
+                            完成
+                          </button>
+                        </div>
+                        <MarkdownEditor
+                          value={description}
+                          onChange={setDescription}
+                          placeholder="可选，支持 Markdown 格式…"
+                          rows={3}
+                          rich
+                          defaultHeight={110}
+                          minHeight={88}
+                          maxHeight={240}
+                          textareaClassName="px-2.5 py-2 pb-5 text-xs leading-relaxed"
+                          className="overflow-hidden rounded-lg border border-border/45 bg-background/60 focus-within:border-primary/45"
+                        />
+                      </div>
+                    </FieldPopover>
                   </div>
-                </FieldPopover>
-              </div>
-            </div>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={expandComposer}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Plus className="h-4 w-4 flex-shrink-0 text-primary/70" />
-            <span className="truncate">写下待办内容，支持 Markdown，AI 润色……</span>
-          </button>
-        )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {fullscreen && (
