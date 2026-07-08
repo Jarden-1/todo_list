@@ -1,21 +1,15 @@
-// InlineDuePicker — compact 4-column due-time editor for the detail panel.
+// InlineDuePicker — flat 4-tab due-time editor for the detail panel.
 //
-// Layout: 1 "main" cell (the currently-selected precision, showing either a
-// clickable date/time button or a static label) + 3 "tab" cells (the other
-// precisions). This replaces the old "precision row on top, picker below"
-// two-row layout with a single row that always fits in one grid cell.
+// Layout: 4 equal-width tabs in a single row. The selected tab is highlighted;
+// the other three are unstyled. When the active precision is `datetime` or
+// `day`, the tab text becomes "label + value" (e.g. "精确时刻 07/08 22:39").
 //
-// Behaviour:
-//   - datetime  → main cell shows "yyyy/MM/dd HH:mm" and opens a datetime-local picker
-//   - day       → main cell shows "yyyy/MM/dd" and opens a date picker
-//   - week      → main cell shows "本周内截止" (static, not clickable)
-//   - none      → main cell shows "未设置截止" (static, not clickable)
-//
-// Clicking a tab switches precision. Switching TO datetime/day seeds a
-// default value (now / today) if none is set so the picker has something
-// to show. Switching TO week/none writes the canonical placeholder/null.
+// Interaction: clicking a tab switches to that precision. Switching to
+// `datetime`/`day` also auto-opens the native picker so the user can pick a
+// date/time immediately. Clicking the already-active `datetime`/`day` tab
+// re-opens the picker to change the value. `week`/`none` have no picker so
+// they just switch.
 import { useRef, type RefObject } from "react";
-import { Calendar } from "lucide-react";
 import type { DueAtPrecision } from "../../lib/types";
 import { endOfDayIso, endOfWeekIso } from "../../lib/dateUtils";
 import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
@@ -39,17 +33,17 @@ const PRECISION_LABEL: Record<DueAtPrecision, string> = {
   none: "无",
 };
 
-/** Human-readable main-cell text for each precision. */
-function mainCellText(precision: DueAtPrecision, dueAt: string | null): string {
+/** Tab text: label alone for week/none and for un-selected tabs; "label + value" when active with a value. */
+function tabText(precision: DueAtPrecision, dueAt: string | null): string {
   if (precision === "datetime") {
     const v = toDatetimeLocalValue(dueAt).replace("T", " ").replace(/-/g, "/");
-    return v || "点击选择时间";
+    return v || PRECISION_LABEL.datetime;
   }
   if (precision === "day") {
-    return toDatetimeLocalValue(dueAt).slice(0, 10).replace(/-/g, "/") || "点击选择日期";
+    const v = toDatetimeLocalValue(dueAt).slice(0, 10).replace(/-/g, "/");
+    return v || PRECISION_LABEL.day;
   }
-  if (precision === "week") return "本周内截止";
-  return "未设置截止";
+  return PRECISION_LABEL[precision];
 }
 
 export function InlineDuePicker({
@@ -62,8 +56,27 @@ export function InlineDuePicker({
 }: InlineDuePickerProps) {
   const dateInputRef = useRef<HTMLInputElement>(null);
 
+  const openDatetimePicker = () => {
+    if (onOpenDatetimePicker) {
+      onOpenDatetimePicker();
+      return;
+    }
+    datetimeRef?.current?.showPicker?.();
+  };
+
+  const openDatePicker = () => {
+    // Defer so the freshly-mounted <input> is in the DOM before showPicker.
+    setTimeout(() => dateInputRef.current?.showPicker?.(), 0);
+  };
+
   const switchTo = (next: DueAtPrecision) => {
-    if (next === precision) return;
+    // Re-clicking the active tab re-opens the picker when there is one.
+    if (next === precision) {
+      if (next === "datetime") openDatetimePicker();
+      else if (next === "day") openDatePicker();
+      return;
+    }
+
     if (next === "none") {
       onChange({ dueAt: null, dueAtPrecision: "none" });
       return;
@@ -75,60 +88,43 @@ export function InlineDuePicker({
     if (next === "day") {
       const base = dueAt ? new Date(dueAt) : new Date();
       onChange({ dueAt: endOfDayIso(base), dueAtPrecision: "day" });
+      openDatePicker();
       return;
     }
     // datetime
     const base = dueAt ? new Date(dueAt) : new Date();
     onChange({ dueAt: base.toISOString(), dueAtPrecision: "datetime" });
+    openDatetimePicker();
   };
-
-  const openPicker = () => {
-    if (precision === "datetime") {
-      onOpenDatetimePicker?.();
-      return;
-    }
-    if (precision === "day") {
-      dateInputRef.current?.showPicker?.();
-    }
-  };
-
-  const isMainClickable = precision === "datetime" || precision === "day";
 
   return (
     <div className="grid grid-cols-4 gap-1">
-      {/* Main cell — shows current precision, clickable when it has a real picker */}
-      <button
-        type="button"
-        onClick={isMainClickable ? openPicker : undefined}
-        disabled={!isMainClickable}
-        className={cn(
-          "col-span-1 flex items-center justify-center gap-1 rounded-md border px-1.5 py-1 text-[11px] transition-colors truncate",
-          overdue
-            ? "border-destructive/50 text-destructive"
-            : "border-primary/40 bg-primary/10 text-primary font-medium",
-          isMainClickable && "cursor-pointer hover:bg-primary/15",
-        )}
-        title={mainCellText(precision, dueAt)}
-      >
-        {isMainClickable && <Calendar className="w-3 h-3 flex-shrink-0" />}
-        <span className="truncate">{mainCellText(precision, dueAt)}</span>
-      </button>
-
-      {/* Tab cells — the other three precisions */}
-      {TAB_ORDER.filter((p) => p !== precision).map((p) => (
-        <button
-          key={p}
-          type="button"
-          onClick={() => switchTo(p)}
-          className="col-span-1 rounded-md border border-border px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors truncate"
-        >
-          {PRECISION_LABEL[p]}
-        </button>
-      ))}
+      {TAB_ORDER.map((p) => {
+        const isActive = p === precision;
+        const text = isActive ? tabText(p, dueAt) : PRECISION_LABEL[p];
+        return (
+          <button
+            key={p}
+            type="button"
+            onClick={() => switchTo(p)}
+            className={cn(
+              "rounded-md border px-1.5 py-1 text-[11px] transition-colors truncate text-center",
+              isActive
+                ? overdue
+                  ? "border-destructive/50 bg-destructive/10 text-destructive font-medium"
+                  : "border-primary/50 bg-primary/10 text-primary font-medium"
+                : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+            title={text}
+          >
+            {text}
+          </button>
+        );
+      })}
 
       {/* Hidden pickers — kept in the DOM so we can call .showPicker() on them.
-          The datetime picker is owned by the parent (via datetimeRef) because
-          the detail panel manages its visibility; the day picker is local. */}
+          sr-only removes them from layout/visual but keeps them focusable for
+          screen readers if ever needed (aria-hidden hides them properly). */}
       {precision === "datetime" && (
         <input
           ref={datetimeRef}
