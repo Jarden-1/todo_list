@@ -33,6 +33,16 @@ interface FieldPopoverProps {
    * trigger again, or clicking outside the owner container all still close.
    */
   containerRef?: RefObject<HTMLElement | null>;
+  /**
+   * Placement hint. `"auto"` (default) flips above the trigger when there
+   * isn't enough room below — useful for tall popovers like the datetime
+   * picker. `"below"` always places the popover below the trigger, even
+   * if it gets clipped at the viewport bottom; the date-only picker uses
+   * this since its small height rarely needs a flip and flipping up
+   * would make the popover feel disconnected from the trigger it
+   * belongs to.
+   */
+  placement?: "auto" | "below";
 }
 
 const GAP_PX = 6; // matches Tailwind's mt-1.5 on the panel
@@ -45,6 +55,7 @@ export function FieldPopover({
   align = "start",
   className,
   containerRef,
+  placement = "auto",
 }: FieldPopoverProps) {
   const triggerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -71,10 +82,21 @@ export function FieldPopover({
       const fitsBelow = popoverHeight === 0 || spaceBelow >= popoverHeight;
       const fitsAbove = popoverHeight > 0 && spaceAbove >= popoverHeight;
       let top: number;
-      if (!fitsBelow && spaceAbove > spaceBelow && fitsAbove) {
-        // Flip above the trigger
+      if (
+        placement === "auto" &&
+        !fitsBelow &&
+        spaceAbove > spaceBelow &&
+        fitsAbove
+      ) {
+        // Flip above the trigger (only in auto mode — `"below"` always
+        // anchors below even if clipped, to stay visually attached to the
+        // trigger it belongs to).
         top = Math.max(GAP_PX, r.top - GAP_PX - popoverHeight);
-      } else if (!fitsBelow && !fitsAbove) {
+      } else if (
+        placement === "auto" &&
+        !fitsBelow &&
+        !fitsAbove
+      ) {
         // Content is taller than the viewport itself — pin to the top
         // with a small margin so the user can at least see the header.
         top = GAP_PX;
@@ -94,7 +116,7 @@ export function FieldPopover({
       window.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
     };
-  }, [open, align]);
+  }, [open, align, placement]);
 
   // Outside-click + Escape to close. The popover is now in a portal, so we
   // must check both the trigger wrapper and the popover element when

@@ -149,6 +149,11 @@ export function DuePrecisionPicker({
   // Popover layout (detail panel): tabs are the trigger, picker rides in
   // the popover body. Composer popover layout: tabs + picker both live
   // inline (the outer FieldPopover already handles the floating layer).
+  //
+  // The date-only picker is short enough that flipping above the tabs
+  // would feel disconnected — pin it below even at the viewport bottom.
+  // The datetime picker is tall (calendar + hour/minute wheel) and flips
+  // when the trigger is too close to the bottom edge.
   if (popoverOnTabClick) {
     return (
       <FieldPopover
@@ -156,6 +161,7 @@ export function DuePrecisionPicker({
         onOpenChange={setPickerOpen}
         containerRef={containerRef}
         className="min-w-[320px]"
+        placement={precision === "datetime" ? "auto" : "below"}
         trigger={tabs}
       >
         {pickerBody}
