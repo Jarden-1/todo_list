@@ -303,30 +303,27 @@ export function ProjectsView({ selectedId, onSelect, filterProjectId }: Projects
                   <button
                     type="button"
                     onClick={() => toggleCollapse(group.id)}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
                   >
                     <span
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: group.color }}
                     />
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                    <span className="min-w-0 flex-shrink truncate text-sm font-semibold text-foreground">
                       {group.name}
                     </span>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="flex flex-shrink-0 items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all"
                             style={{ width: `${progress}%`, backgroundColor: group.color }}
                           />
                         </div>
-                        <span className="text-[10px] text-muted-foreground">
-                          {group.doneTodos.length}/{total}
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          {group.doneTodos.length}/{total} · {group.todos.length} 未完成
                         </span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground">
-                        {group.todos.length} 未完成
-                      </span>
                       {isCollapsed ? (
                         <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                       ) : (

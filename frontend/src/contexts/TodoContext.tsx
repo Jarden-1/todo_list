@@ -12,6 +12,7 @@ import {
   organizeTodo,
 } from "../lib/aiApi";
 import * as todosApi from "../lib/todosApi";
+import { syncSubtasksFromMarkdown } from "../lib/markdownTasks";
 import type {
   Project,
   Tag,
@@ -325,6 +326,28 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
     return todo;
   }, []);
 
+  const syncSubtasksLocally = useCallback((todoId: string, markdown: string) => {
+    const now = new Date().toISOString();
+    setTodos((prev) =>
+      prev.map((todo) => {
+        if (todo.id !== todoId) return todo;
+        const nextSubtasks = syncSubtasksFromMarkdown(markdown, todo.subtasks, now);
+        // Avoid needless re-renders when the task list didn't actually change.
+        const sameLength = nextSubtasks.length === todo.subtasks.length;
+        const sameContent =
+          sameLength &&
+          nextSubtasks.every(
+            (subtask, index) =>
+              subtask.id === todo.subtasks[index].id &&
+              subtask.title === todo.subtasks[index].title &&
+              subtask.done === todo.subtasks[index].done
+          );
+        if (sameContent) return todo;
+        return { ...todo, subtasks: nextSubtasks };
+      })
+    );
+  }, []);
+
   const value = useMemo<TodoContextValue>(
     () => ({
       todos,
@@ -361,6 +384,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       toggleSubtask,
       addSubtask,
       deleteSubtask,
+      syncSubtasksLocally,
     }),
     [
       addProject,
@@ -387,6 +411,7 @@ export function TodoProvider({ children }: { children: React.ReactNode }) {
       refreshWorkspace,
       restoreTodo,
       selectedTodoId,
+      syncSubtasksLocally,
       tags,
       todos,
       toggleSubtask,

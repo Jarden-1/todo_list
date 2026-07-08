@@ -50,4 +50,8 @@ export interface TodoContextValue {
   toggleSubtask: (todoId: string, subtaskId: string) => Promise<Todo>;
   addSubtask: (todoId: string, title: string) => Promise<Todo>;
   deleteSubtask: (todoId: string, subtaskId: string) => Promise<Todo>;
+  // Optimistically update a todo's subtasks in local state from its markdown
+  // task list, without an API call. The backend reconciles on the next
+  // contentMarkdown save (replaceActiveSubtasksFromMarkdown).
+  syncSubtasksLocally: (todoId: string, markdown: string) => void;
 }

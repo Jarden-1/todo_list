@@ -1,7 +1,7 @@
 // SmartTodo - Main Home Page
 // Desktop: Left sidebar + Main content + Right detail panel (responsive)
 // Mobile: Top header + Main content + Bottom nav + Detail drawer
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { MobileNav } from "../components/MobileNav";
 import { MobileDetailDrawer } from "../components/MobileDetailDrawer";
@@ -13,6 +13,7 @@ import { ProjectsView } from "../components/views/ProjectsView";
 import { PriorityView } from "../components/views/PriorityView";
 import { CompletedView } from "../components/views/CompletedView";
 import { useTodo } from "../contexts/TodoContext";
+import { isTodayDate } from "../lib/dateUtils";
 import { Sun, Clock, FolderOpen, BarChart2, CheckCircle2, Menu, X } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useTransientScrollbar } from "../hooks/useTransientScrollbar";
@@ -60,7 +61,52 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
     (t) => t.status !== "done" && t.status !== "cancelled"
   ).length;
 
+  // Auto-select the first todo of a view when the user switches to it, so the
+  // detail panel opens by default. Once the user manually selects (or closes)
+  // a todo we stop auto-selecting for that view — the flag resets on the next
+  // view switch.
+  const viewAutoSelectedRef = useRef(false);
+  useEffect(() => {
+    viewAutoSelectedRef.current = false;
+  }, [currentView]);
+
+  useEffect(() => {
+    if (viewAutoSelectedRef.current) return;
+    const visible = todos.filter((t) => !t.deletedAt);
+    let candidates = visible;
+    if (currentView === "today") {
+      candidates = visible.filter(
+        (t) =>
+          t.status !== "done" &&
+          t.status !== "cancelled" &&
+          isTodayDate(t.dueAt)
+      );
+    } else if (currentView === "completed") {
+      candidates = visible.filter(
+        (t) => t.status === "done" || t.status === "cancelled"
+      );
+    } else {
+      candidates = visible.filter(
+        (t) => t.status !== "done" && t.status !== "cancelled"
+      );
+    }
+    // Earliest due date first; todos without a due date sink to the bottom.
+    const sorted = [...candidates].sort((a, b) => {
+      const at = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const bt = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return at - bt;
+    });
+    if (sorted.length > 0) {
+      viewAutoSelectedRef.current = true;
+      setSelectedTodoId(sorted[0].id);
+    } else {
+      setSelectedTodoId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView, todos]);
+
   const handleSelectTodo = (id: string) => {
+    viewAutoSelectedRef.current = true;
     if (selectedTodoId === id) {
       closeDetailPanel();
       return;
@@ -187,6 +233,16 @@ export default function Home({ onOpenSettings, onLogout }: HomeProps) {
         <div
           ref={mainScroll.ref}
           onScroll={mainScroll.onScroll}
+          onMouseDown={(event) => {
+            // Click on empty space (not a todo card or interactive element)
+            // collapses the detail panel — matches the "click outside to close"
+            // mental model users expect from a side panel.
+            if (!selectedTodoId) return;
+            const target = event.target as HTMLElement;
+            if (target.closest(".todo-card")) return;
+            if (target.closest("button, a, select, input, textarea, [role='button']")) return;
+            closeDetailPanel();
+          }}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-6 pb-20 md:pb-6"
         >
           <div className="pt-2 pb-4">

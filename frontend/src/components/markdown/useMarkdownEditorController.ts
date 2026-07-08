@@ -359,7 +359,20 @@ export function useMarkdownEditorController({
     const nativeEvent = event.nativeEvent as KeyboardEvent<HTMLDivElement>["nativeEvent"] & {
       isComposing?: boolean;
     };
-    if (!nativeEvent.isComposing && (event.key === "Enter" || event.key === " ")) {
+    if (nativeEvent.isComposing) return;
+
+    // Enter inside a task list needs special handling so a new checkbox is
+    // created instead of a plain list item. Let the bridge decide; if it
+    // handled it, skip the normalize step below (which would rewrite innerHTML
+    // and could lose the caret).
+    if (event.key === "Enter") {
+      const handled = richBridge.handleTaskListEnter(event);
+      if (handled) return;
+      requestAnimationFrame(() => richBridge.normalizeRichEditor(true));
+      return;
+    }
+
+    if (event.key === " ") {
       requestAnimationFrame(() => richBridge.normalizeRichEditor(true));
     }
   };
@@ -414,6 +427,7 @@ export function useMarkdownEditorController({
     handleCompositionStart: richBridge.handleCompositionStart,
     handleCompositionEnd: richBridge.handleCompositionEnd,
     handleRichSelectionSnapshot: richBridge.handleSelectionSnapshot,
+    handleTaskListEnter: richBridge.handleTaskListEnter,
     handlePlainKeyDown,
     handleRichKeyDown,
     handleRichBeforeInput,

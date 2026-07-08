@@ -19,6 +19,7 @@ import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ComposerFullscreenDialog } from "./composer/ComposerFullscreenDialog";
+import { FieldPopover } from "./composer/FieldPopover";
 import { DuePrecisionPicker } from "./todo-detail/DuePrecisionPicker";
 import { ProjectDeleteDialog } from "./ProjectDeleteDialog";
 import { PRIORITY_OPTIONS } from "../lib/todoOptions";
@@ -62,10 +63,12 @@ interface AddTodoComposerProps {
 
 export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
   const [input, setInput] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const collapseTimerRef = useRef<number | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [openField, setOpenField] = useState<FieldKey | null>(null);
 
@@ -171,6 +174,7 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
       setDescription("");
       setOpenField(null);
       setFullscreen(false);
+      setExpanded(false);
       onTodoCreated?.(firstTodo.id);
 
       const summary =
@@ -273,256 +277,331 @@ export function AddTodoComposer({ onTodoCreated }: AddTodoComposerProps) {
     setOpenField((prev) => (prev === key ? null : key));
   };
 
+  const expandComposer = () => {
+    if (collapseTimerRef.current) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+    setExpanded(true);
+  };
+
+  // Collapse the composer when focus leaves it entirely (clicked outside, not
+  // into a toolbar button or popover). Deferred via setTimeout so that focus
+  // has time to move to the next element — contentEditable blur fires before
+  // the next focus target is known, and toolbar buttons use mousedown preventDefault
+  // so they never truly "receive" focus.
+  const handleComposerBlur = () => {
+    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
+    collapseTimerRef.current = window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active && composerRef.current?.contains(active)) return;
+      if (!input.trim() && !openField && !fullscreen) {
+        setExpanded(false);
+        setOpenField(null);
+      }
+    }, 120);
+  };
+
+  const handleComposerFocus = () => {
+    if (collapseTimerRef.current) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+  };
+
   return (
     <div ref={composerRef} className="relative">
-      <div className="smart-composer-card glass-card relative rounded-2xl ring-1 ring-primary/30 shadow-lg shadow-primary/5 transition-all duration-200">
-        {/* Main markdown input */}
-        <MarkdownEditor
-          value={input}
-          onChange={setInput}
-          textareaRef={textareaRef}
-          onKeyDown={handleKeyDown}
-          placeholder="写下待办内容，支持 Markdown，或使用 AI 整理…"
-          rows={4}
-          autoFocus
-          rich
-          toolbarMode="responsive"
-          onAiOrganize={handleAiOrganize}
-          aiLoading={aiLoading}
-          aiDisabled={!hasComposeInput}
-          showFullscreenToggle
-          onToggleFullscreen={openFullscreen}
-          fullscreenToggleLabel="全屏输入"
-          resizableY
-          defaultHeight={180}
-          minHeight={150}
-          maxHeight={420}
-          toolbarClassName="px-4 pt-4"
-          textareaClassName="px-4 pb-6 pt-3 text-sm leading-relaxed"
-        />
+      <div
+        onBlur={handleComposerBlur}
+        onFocus={handleComposerFocus}
+        className={cn(
+          "smart-composer-card glass-card relative rounded-2xl ring-1 transition-all duration-200",
+          expanded
+            ? "ring-primary/30 shadow-lg shadow-primary/5"
+            : "ring-border/40 shadow-sm hover:ring-border/70"
+        )}
+      >
+        {expanded ? (
+          <>
+            {/* Expanded: full markdown editor + field buttons */}
+            <MarkdownEditor
+              value={input}
+              onChange={setInput}
+              textareaRef={textareaRef}
+              onKeyDown={handleKeyDown}
+              placeholder="写下待办内容，支持 Markdown，AI 润色……"
+              rows={3}
+              autoFocus
+              rich
+              toolbarMode="responsive"
+              onAiOrganize={handleAiOrganize}
+              aiLoading={aiLoading}
+              aiDisabled={!hasComposeInput}
+              showFullscreenToggle
+              onToggleFullscreen={openFullscreen}
+              fullscreenToggleLabel="全屏输入"
+              defaultHeight={130}
+              minHeight={110}
+              maxHeight={380}
+              toolbarClassName="px-4 pt-3"
+              textareaClassName="px-4 pb-5 pt-2 text-sm leading-relaxed"
+            />
 
-        {/* Field panel — one slot at a time, opens below the input */}
-        {openField && (
-          <div className="mx-4 mb-3 rounded-xl border border-border/45 bg-muted/30 p-3">
-            {openField === "assignee" && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <User className="w-3 h-3" /> 参与人
-                </label>
-                <input
-                  autoFocus
-                  value={assignee}
-                  onChange={(e) => setAssignee(e.target.value)}
-                  placeholder="姓名 / 邮箱"
-                  className="field-input w-full"
-                />
-                {recentAssignees.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[10px] text-muted-foreground">历史:</span>
-                    {recentAssignees.map((name) => (
-                      <span
-                        key={name}
-                        className="group/ra inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5 text-[11px] text-foreground"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setAssignee(name)}
-                          className="hover:text-primary"
-                        >
-                          {name}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeRecentAssignee(name)}
-                          className="text-muted-foreground/50 hover:text-destructive"
-                          aria-label={`删除历史人名 ${name}`}
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {openField === "project" && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <FolderOpen className="w-3 h-3" /> 项目
-                </label>
-                <div className="flex items-center gap-1">
-                  <select
-                    value={projectId || (isCreatingProject ? NEW_PROJECT_VALUE : "")}
-                    onChange={(e) => handleProjectSelect(e.target.value)}
-                    className="field-input flex-1 min-w-0"
-                  >
-                    <option value="">未分配</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                    <option value={NEW_PROJECT_VALUE}>+ 新建项目…</option>
-                  </select>
-                  {projectId && selectedProject && (
-                    <button
-                      type="button"
-                      onClick={() => setProjectDeleteTarget(selectedProject)}
-                      className="flex-shrink-0 p-1.5 rounded text-muted-foreground hover:text-destructive transition-colors"
-                      aria-label="删除当前项目"
-                      title="删除项目"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-                {isCreatingProject && (
-                  <div className="flex items-center gap-1">
+            {/* 5 lightweight field buttons, each opens a popover */}
+            <div className="flex items-center justify-between gap-1.5 px-3 py-2 border-t border-border/30">
+              <div className="flex flex-wrap items-center gap-1">
+                <FieldPopover
+                  open={openField === "assignee"}
+                  onOpenChange={(o) => setOpenField(o ? "assignee" : null)}
+                  trigger={
+                    <FieldButton
+                      icon={User}
+                      label="参与人"
+                      active={openField === "assignee"}
+                      value={assignee}
+                      onClick={() => toggleField("assignee")}
+                    />
+                  }
+                >
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <User className="w-3 h-3" /> 参与人
+                    </label>
                     <input
                       autoFocus
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") void handleCreateProject();
-                      }}
-                      placeholder="新项目名称…"
-                      className="field-input flex-1 min-w-0"
+                      value={assignee}
+                      onChange={(e) => setAssignee(e.target.value)}
+                      placeholder="姓名 / 邮箱"
+                      className="field-input w-full"
                     />
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        void handleCreateProject();
-                      }}
-                      className="flex-shrink-0 p-1 text-emerald-500 hover:text-emerald-400"
-                      aria-label="确认新建项目"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProjectId("");
-                        setNewProjectName("");
-                      }}
-                      className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
-                      aria-label="取消"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                    {recentAssignees.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[10px] text-muted-foreground">历史:</span>
+                        {recentAssignees.map((name) => (
+                          <span
+                            key={name}
+                            className="group/ra inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5 text-[11px] text-foreground"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setAssignee(name)}
+                              className="hover:text-primary"
+                            >
+                              {name}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeRecentAssignee(name)}
+                              className="text-muted-foreground/50 hover:text-destructive"
+                              aria-label={`删除历史人名 ${name}`}
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                </FieldPopover>
 
-            {openField === "priority" && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Flag className="w-3 h-3" /> 优先级
-                </label>
-                <div className="flex gap-1.5">
-                  {PRIORITY_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setPriority(option.value as TodoPriority)}
-                      className={cn(
-                        "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
-                        priority === option.value
-                          ? "border-primary/40 bg-primary/10 text-primary"
-                          : "border-border/45 bg-background/60 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                <FieldPopover
+                  open={openField === "project"}
+                  onOpenChange={(o) => setOpenField(o ? "project" : null)}
+                  className="min-w-[260px]"
+                  trigger={
+                    <FieldButton
+                      icon={FolderOpen}
+                      label="项目"
+                      active={openField === "project"}
+                      value={selectedProject?.name ?? ""}
+                      emptyLabel="未分配"
+                      onClick={() => toggleField("project")}
+                    />
+                  }
+                >
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <FolderOpen className="w-3 h-3" /> 项目
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={projectId || (isCreatingProject ? NEW_PROJECT_VALUE : "")}
+                        onChange={(e) => handleProjectSelect(e.target.value)}
+                        className="field-input flex-1 min-w-0"
+                      >
+                        <option value="">未分配</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.name}
+                          </option>
+                        ))}
+                        <option value={NEW_PROJECT_VALUE}>+ 新建项目…</option>
+                      </select>
+                      {projectId && selectedProject && (
+                        <button
+                          type="button"
+                          onClick={() => setProjectDeleteTarget(selectedProject)}
+                          className="flex-shrink-0 p-1.5 rounded text-muted-foreground hover:text-destructive transition-colors"
+                          aria-label="删除当前项目"
+                          title="删除项目"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                    </div>
+                    {isCreatingProject && (
+                      <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={newProjectName}
+                          onChange={(e) => setNewProjectName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") void handleCreateProject();
+                          }}
+                          placeholder="新项目名称…"
+                          className="field-input flex-1 min-w-0"
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            void handleCreateProject();
+                          }}
+                          className="flex-shrink-0 p-1 text-emerald-500 hover:text-emerald-400"
+                          aria-label="确认新建项目"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProjectId("");
+                            setNewProjectName("");
+                          }}
+                          className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
+                          aria-label="取消"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </FieldPopover>
 
-            {openField === "due" && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> 截止时间
-                </label>
-                <DuePrecisionPicker
-                  dueAt={dueAt}
-                  precision={dueAtPrecision}
-                  onChange={(next) => {
-                    setDueAt(next.dueAt);
-                    setDueAtPrecision(next.dueAtPrecision);
-                  }}
-                />
-              </div>
-            )}
+                <FieldPopover
+                  open={openField === "priority"}
+                  onOpenChange={(o) => setOpenField(o ? "priority" : null)}
+                  trigger={
+                    <FieldButton
+                      icon={Flag}
+                      label="优先级"
+                      active={openField === "priority"}
+                      value={priority !== "medium" ? priority : ""}
+                      emptyLabel="中"
+                      onClick={() => toggleField("priority")}
+                    />
+                  }
+                >
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Flag className="w-3 h-3" /> 优先级
+                    </label>
+                    <div className="flex gap-1.5">
+                      {PRIORITY_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setPriority(option.value as TodoPriority)}
+                          className={cn(
+                            "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
+                            priority === option.value
+                              ? "border-primary/40 bg-primary/10 text-primary"
+                              : "border-border/45 bg-background/60 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </FieldPopover>
 
-            {openField === "description" && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
-                </label>
-                <MarkdownEditor
-                  value={description}
-                  onChange={setDescription}
-                  placeholder="可选，支持 Markdown 格式…"
-                  rows={3}
-                  rich
-                  resizableY
-                  defaultHeight={120}
-                  minHeight={88}
-                  maxHeight={280}
-                  textareaClassName="px-2.5 py-2 pb-5 text-xs leading-relaxed"
-                  className="overflow-hidden rounded-lg border border-border/45 bg-background/60 focus-within:border-primary/45"
-                />
+                <FieldPopover
+                  open={openField === "due"}
+                  onOpenChange={(o) => setOpenField(o ? "due" : null)}
+                  className="min-w-[280px]"
+                  trigger={
+                    <FieldButton
+                      icon={Calendar}
+                      label="截止"
+                      active={openField === "due"}
+                      value={dueAtPrecision !== "none" ? dueAtPrecision : ""}
+                      emptyLabel="无"
+                      onClick={() => toggleField("due")}
+                    />
+                  }
+                >
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> 截止时间
+                    </label>
+                    <DuePrecisionPicker
+                      dueAt={dueAt}
+                      precision={dueAtPrecision}
+                      onChange={(next) => {
+                        setDueAt(next.dueAt);
+                        setDueAtPrecision(next.dueAtPrecision);
+                      }}
+                    />
+                  </div>
+                </FieldPopover>
+
+                <FieldPopover
+                  open={openField === "description"}
+                  onOpenChange={(o) => setOpenField(o ? "description" : null)}
+                  className="min-w-[300px]"
+                  trigger={
+                    <FieldButton
+                      icon={Edit3}
+                      label="描述"
+                      active={openField === "description"}
+                      value={description ? "已填写" : ""}
+                      onClick={() => toggleField("description")}
+                    />
+                  }
+                >
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Edit3 className="w-3 h-3" /> 描述（支持 Markdown）
+                    </label>
+                    <MarkdownEditor
+                      value={description}
+                      onChange={setDescription}
+                      placeholder="可选，支持 Markdown 格式…"
+                      rows={3}
+                      rich
+                      defaultHeight={110}
+                      minHeight={88}
+                      maxHeight={240}
+                      textareaClassName="px-2.5 py-2 pb-5 text-xs leading-relaxed"
+                      className="overflow-hidden rounded-lg border border-border/45 bg-background/60 focus-within:border-primary/45"
+                    />
+                  </div>
+                </FieldPopover>
               </div>
-            )}
-          </div>
+            </div>
+          </>
+        ) : (
+          /* Collapsed: a single-line clickable prompt */
+          <button
+            type="button"
+            onClick={expandComposer}
+            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Plus className="h-4 w-4 flex-shrink-0 text-primary/70" />
+            <span className="truncate">写下待办内容，支持 Markdown，AI 润色……</span>
+          </button>
         )}
-
-        {/* 5 lightweight field buttons + fullscreen/AI on the right */}
-        <div className="flex items-center justify-between gap-1.5 px-3 py-2 border-t border-border/30">
-          <div className="flex flex-wrap items-center gap-1">
-            <FieldButton
-              icon={User}
-              label="参与人"
-              active={openField === "assignee"}
-              value={assignee}
-              onClick={() => toggleField("assignee")}
-            />
-            <FieldButton
-              icon={FolderOpen}
-              label="项目"
-              active={openField === "project"}
-              value={selectedProject?.name ?? ""}
-              emptyLabel="未分配"
-              onClick={() => toggleField("project")}
-            />
-            <FieldButton
-              icon={Flag}
-              label="优先级"
-              active={openField === "priority"}
-              value={priority !== "medium" ? priority : ""}
-              emptyLabel="中"
-              onClick={() => toggleField("priority")}
-            />
-            <FieldButton
-              icon={Calendar}
-              label="截止"
-              active={openField === "due"}
-              value={dueAtPrecision !== "none" ? dueAtPrecision : ""}
-              emptyLabel="无"
-              onClick={() => toggleField("due")}
-            />
-            <FieldButton
-              icon={Edit3}
-              label="描述"
-              active={openField === "description"}
-              value={description ? "已填写" : ""}
-              onClick={() => toggleField("description")}
-            />
-          </div>
-        </div>
       </div>
 
       {fullscreen && (

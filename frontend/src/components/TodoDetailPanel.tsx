@@ -24,7 +24,7 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
   const {
     updateTodo,
     projects, toggleSubtask, addSubtask, deleteSubtask, setSelectedTodoId,
-    refreshWorkspace,
+    refreshWorkspace, syncSubtasksLocally,
   } = useTodo();
   const { user } = useAuth();
 
@@ -114,6 +114,13 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
       markdownTimerRef.current = null;
       flushMarkdown();
     }, 800);
+
+    // Optimistically sync subtasks from `- [ ]` / `- [x]` lines so the bottom
+    // subtask list updates immediately, without waiting for the 800ms debounced
+    // contentMarkdown save (which triggers the backend's own subtask sync via
+    // replaceActiveSubtasksFromMarkdown). The backend remains the source of
+    // truth — its response will reconcile any drift on the next refresh.
+    syncSubtasksLocally(todo.id, nextMarkdown);
   };
 
   const handleMarkdownPolish = async () => {

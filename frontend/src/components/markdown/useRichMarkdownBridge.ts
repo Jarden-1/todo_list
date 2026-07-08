@@ -383,6 +383,66 @@ export function useRichMarkdownBridge({
     emitRichChange();
   };
 
+  // Handle Enter inside a task-list <li>. Browsers create a plain <li> without
+  // a checkbox, which breaks the task list into a half-task half-list mess.
+  // Instead: if the current task line is empty, exit the list; otherwise insert
+  // a new <li> with a fresh unchecked checkbox and place the caret after it.
+  const handleTaskListEnter = (event: React.KeyboardEvent<HTMLDivElement>): boolean => {
+    const editor = richEditorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) return false;
+
+    const range = selection.getRangeAt(0);
+    let node: Node | null = range.startContainer;
+    while (node && node !== editor && node.nodeName !== "LI") {
+      node = node.parentNode;
+    }
+    const li = node as HTMLLIElement | null;
+    if (!li || li.nodeName !== "LI") return false;
+    const list = li.parentElement;
+    if (!list || !list.classList.contains("contains-task-list")) return false;
+
+    event.preventDefault();
+
+    // Detect empty task line: only the checkbox + a single whitespace text
+    // node (or <br>), no real text. In that case the user wants to exit the
+    // task list — insert a paragraph after the list and move the caret there.
+    const liText = (li.textContent ?? "").replace(/\u200B/g, "").trim();
+    if (!liText) {
+      const paragraph = document.createElement("p");
+      paragraph.appendChild(document.createElement("br"));
+      list.after(paragraph);
+      li.remove();
+      const caret = document.createRange();
+      caret.setStart(paragraph, 0);
+      caret.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(caret);
+      savedRangeRef.current = caret.cloneRange();
+      emitRichChange();
+      return true;
+    }
+
+    // Non-empty line: create a new task <li> with an unchecked checkbox.
+    const newLi = document.createElement("li");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "task-checkbox";
+    newLi.appendChild(checkbox);
+    newLi.appendChild(document.createTextNode(" "));
+    li.after(newLi);
+
+    // Place the caret right after the space, so typing begins as task text.
+    const caret = document.createRange();
+    caret.setStart(newLi, newLi.childNodes.length);
+    caret.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caret);
+    savedRangeRef.current = caret.cloneRange();
+    emitRichChange();
+    return true;
+  };
+
   return {
     richEditorRef,
     runRichCommand,
@@ -399,5 +459,6 @@ export function useRichMarkdownBridge({
     handleCompositionEnd,
     handleSelectionSnapshot,
     handleRichClick,
+    handleTaskListEnter,
   };
 }
