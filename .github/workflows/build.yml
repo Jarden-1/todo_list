@@ -1,0 +1,91 @@
+name: Build SmartTodo Desktop (multi-platform)
+
+# 触发：推送 v* 标签（如 v1.0.0）或手动在 Actions 页面点 Run workflow
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 用于 softprops/action-gh-release 创建/更新 Release
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false   # 某平台失败不影响其它平台
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+            icon: assets/SmartTodo.icns
+          - os: windows-latest
+            platform: windows
+            icon: assets/SmartTodo.ico
+          - os: ubuntu-latest
+            platform: linux
+            icon: assets/SmartTodo.png
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pake-cli (pinned)
+        run: npm install -g pake-cli@3.13.1
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux build dependencies (Tauri v2)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl wget file \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            patchelf \
+            libxdo-dev
+
+      - name: Build SmartTodo (${{ matrix.platform }})
+        run: pake https://todo.zhanghaoyang.cn/ --name SmartTodo --icon ${{ matrix.icon }} --width 1280 --height 800 --show-system-tray
+
+      - name: Show produced artifacts
+        run: ls -lh release/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartTodo-${{ matrix.platform }}
+          path: release/*
+          if-no-files-found: warn
+
+  release:
+    name: Publish to GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
