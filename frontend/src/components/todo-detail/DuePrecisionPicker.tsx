@@ -3,6 +3,7 @@ import { DUE_PRECISION_OPTIONS } from "../../lib/todoOptions";
 import { endOfDayIso, endOfWeekIso } from "../../lib/dateUtils";
 import { toDatetimeLocalValue } from "../../lib/todoDueReminder";
 import { cn } from "../../lib/utils";
+import { Calendar } from "lucide-react";
 
 interface DuePrecisionPickerProps {
   /** Current resolved dueAt ISO string (placeholder for day/week), or null. */
@@ -75,18 +76,20 @@ export function DuePrecisionPicker({
       </div>
 
       {precision === "datetime" && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={onOpenDatetimePicker}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              onOpenDatetimePicker?.();
-            }
-          }}
-          className="mt-1.5"
-        >
+        <div className="relative mt-1.5">
+          <button
+            type="button"
+            onClick={onOpenDatetimePicker}
+            className={cn(
+              "w-full field-input text-left flex items-center justify-between text-xs",
+              overdue && "border-destructive/50 text-destructive"
+            )}
+          >
+            <span>{toDatetimeLocalValue(dueAt).replace("T", " ").replace(/-/g, "/") || "点击选择精确时间"}</span>
+            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+          {/* Hidden input — kept in the DOM so we can call .showPicker() on it
+              when the user clicks the visible button above. */}
           <input
             ref={datetimeRef}
             type="datetime-local"
@@ -97,10 +100,7 @@ export function DuePrecisionPicker({
                 dueAtPrecision: event.target.value ? "datetime" : "none",
               })
             }
-            className={cn(
-              "field-input cursor-pointer",
-              overdue && "border-destructive/50 text-destructive"
-            )}
+            className="absolute inset-0 opacity-0 pointer-events-none w-full"
           />
         </div>
       )}
