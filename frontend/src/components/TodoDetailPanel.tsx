@@ -62,6 +62,19 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
     });
   }, [updateTodo]);
 
+  // Cancel any in-flight debounced markdown save. The backend treats
+  // contentMarkdown as the source of truth for subtask state via
+  // replaceActiveSubtasksFromMarkdown, so a stale PATCH fired AFTER the user
+  // toggled a subtask would resurrect the old `- [ ]` and silently undo the
+  // click. Always call this before invoking a subtask mutation.
+  const cancelPendingMarkdown = useCallback(() => {
+    if (markdownTimerRef.current) {
+      window.clearTimeout(markdownTimerRef.current);
+      markdownTimerRef.current = null;
+    }
+    pendingMarkdownRef.current = null;
+  }, []);
+
   useEffect(() => {
     setTitleValue(todo.title);
     setAssigneeValue(todo.assignee ?? "");
@@ -157,6 +170,7 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
   const handleAddSubtask = async () => {
     if (newSubtask.trim()) {
       try {
+        cancelPendingMarkdown();
         await addSubtask(todo.id, newSubtask.trim());
         setNewSubtask("");
         setShowSubtaskInput(false);
@@ -267,12 +281,14 @@ export function TodoDetailPanel({ todo, onClose }: TodoDetailPanelProps) {
           onShowSubtaskInputChange={setShowSubtaskInput}
           onAddSubtask={handleAddSubtask}
           onToggleSubtask={(subtaskId) => {
+            cancelPendingMarkdown();
             void toggleSubtask(todo.id, subtaskId).catch((error) => {
               toast.error(error instanceof Error ? error.message : "子任务更新失败");
               void refreshWorkspace().catch(() => {});
             });
           }}
           onDeleteSubtask={(subtaskId) => {
+            cancelPendingMarkdown();
             void deleteSubtask(todo.id, subtaskId).catch((error) => {
               toast.error(error instanceof Error ? error.message : "子任务删除失败");
             });
